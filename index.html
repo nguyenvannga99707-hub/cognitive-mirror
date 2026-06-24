@@ -410,7 +410,7 @@ main {
       <div class="mirror-icon">🪞</div>
       <div class="mirror-title">认知镜</div>
       <div class="mirror-subtitle">把你缠住的问题丢进来，帮你解耦。</div>
-      <div class="remaining">今日剩余 <span id="count-remaining">-</span> 次</div>
+      <div class="remaining">今日剩余 <span id="count-remaining">-</span> 次 <a href="#" onclick="resetMirrorLimit();return false" style="color:var(--text-muted);font-size:11px;margin-left:8px;text-decoration:none;border-bottom:1px dashed var(--text-muted)">重置</a></div>
 
       <div class="input-area">
         <textarea id="input-question" placeholder="比如：我到底该不该辞职去做副业…" rows="2"></textarea>
@@ -626,6 +626,12 @@ function mirrorUse() {
   const today = new Date().toISOString().slice(0,10);
   const key = 'mirror_' + today;
   localStorage.setItem(key, (parseInt(localStorage.getItem(key)||'0')) + 1);
+}
+function resetMirrorLimit() {
+  const today = new Date().toISOString().slice(0,10);
+  localStorage.removeItem('mirror_' + today);
+  document.getElementById('count-remaining').textContent = '3';
+  toast('次数已重置');
 }
 
 async function fetchRemaining() {
