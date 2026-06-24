@@ -721,8 +721,8 @@ function renderNetwork() {
   const svg = d3.select('#network-svg');
   svg.selectAll('*').remove();
 
-  const W = container.clientWidth;
-  const H = container.clientHeight;
+  const width = container.clientWidth;
+  const height = container.clientHeight;
 
   const g = svg.append('g');
 
@@ -731,31 +731,18 @@ function renderNetwork() {
     g.attr('transform', e.transform);
   });
   svg.call(zoom);
-  svg.call(zoom.transform, d3.zoomIdentity);
+  svg.call(zoom.transform, d3.zoomIdentity.translate(width/2, height/2));
 
   // 根据 tagFrequency 调整标签节点大小
   const tagFreq = networkData.tagFrequency || {};
   const maxFreq = Math.max(...Object.values(tagFreq), 1);
 
-  // 给每个节点随机初始位置（避免从 (0,0) 挤爆）
-  const cx = W / 2, cy = H / 2;
-  for (const n of networkData.nodes) {
-    if (n.x == null) {
-      const a = Math.random() * 2 * Math.PI;
-      const r = 60 + Math.random() * Math.min(cx, cy) * 0.5;
-      n.x = cx + Math.cos(a) * r;
-      n.y = cy + Math.sin(a) * r;
-    }
-  }
-
   // 力模拟
   simulation = d3.forceSimulation(networkData.nodes)
-    .force('link', d3.forceLink(networkData.links).id(d => d.id).distance(d => d.source.type === 'tag' || d.target.type === 'tag' ? 100 : 70))
-    .force('charge', d3.forceManyBody().strength(-180))
-    .force('collide', d3.forceCollide().radius(d => d.type === 'tag' ? 28 : 18))
-    .force('x', d3.forceX(cx).strength(0.03))
-    .force('y', d3.forceY(cy).strength(0.03))
-    .alphaDecay(0.02);
+    .force('link', d3.forceLink(networkData.links).id(d => d.id).distance(80))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(0, 0))
+    .force('collision', d3.forceCollide().radius(d => d.type === 'tag' ? 20 : 14));
 
   // 连线
   const link = g.append('g')
@@ -773,9 +760,9 @@ function renderNetwork() {
     .join('g')
     .attr('cursor', 'pointer')
     .call(d3.drag()
-      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.15).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
       .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0.05); d.fx = null; d.fy = null; })
+      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
     );
 
   // 卡片节点
@@ -790,10 +777,10 @@ function renderNetwork() {
   tagNodes.append('circle')
     .attr('r', d => {
       const freq = tagFreq[d.label] || 1;
-      return 10 + (freq / maxFreq) * 18;
+      return 8 + (freq / maxFreq) * 16;
     })
     .attr('fill', '#8888a0')
-    .attr('opacity', 0.45)
+    .attr('opacity', 0.5)
     .attr('stroke', '#555570')
     .attr('stroke-width', 0.5);
 
@@ -801,10 +788,10 @@ function renderNetwork() {
     .text(d => d.label)
     .attr('dy', d => {
       const freq = tagFreq[d.label] || 1;
-      return -(14 + (freq / maxFreq) * 20);
+      return -(12 + (freq / maxFreq) * 18);
     })
     .attr('text-anchor', 'middle')
-    .attr('fill', '#9999b0')
+    .attr('fill', '#8888a0')
     .attr('font-size', '11px')
     .attr('font-family', getComputedStyle(document.body).fontFamily);
 
@@ -838,16 +825,8 @@ function renderNetwork() {
     }
   });
 
-  // 边界约束 — 节点不飞出容器
-  const pad = 40;
-  function constrain(d) {
-    d.x = Math.max(pad, Math.min(W - pad, d.x));
-    d.y = Math.max(pad, Math.min(H - pad, d.y));
-  }
-
   // 更新位置
   simulation.on('tick', () => {
-    for (const d of networkData.nodes) constrain(d);
     link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
       .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
     node.attr('transform', d => `translate(${d.x},${d.y})`);
