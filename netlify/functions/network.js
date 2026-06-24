@@ -1,57 +1,43 @@
 /**
- * GET /.netlify/functions/network — 知识网络（Netlify Blob）
+ * GET /.netlify/functions/network — 知识网络（Supabase）
  */
-import { getStore } from "@netlify/blobs";
-
-const cardsStore = getStore("cards");
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 exports.handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-  };
-
+  const hdrs = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
+    return { statusCode: 204, headers: { ...hdrs, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   }
 
   try {
-    const { blobs } = await cardsStore.list({ prefix: 'card:' });
-    const cards = [];
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/cards?select=*&order=timestamp.desc&limit=200`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+    });
+    const cards = await res.json();
 
-    for (const blob of blobs) {
-      const raw = await cardsStore.get(blob.key);
-      if (raw) cards.push(JSON.parse(raw));
-    }
-    cards.sort((a, b) => b.timestamp - a.timestamp);
-    const recent = cards.slice(0, 200);
+    const nodes = [], links = [], tagFreq = {}, tagSet = new Set();
 
-    const nodes = [];
-    const links = [];
-    const tagSet = new Set();
-    const tagFrequency = {};
-
-    for (const card of recent) {
+    for (const card of cards) {
       if (!card.tags || !Array.isArray(card.tags)) continue;
       nodes.push({
         id: card.id, type: 'card',
-        question: card.question?.slice(0, 80) || '',
+        question: (card.question || '').slice(0, 80),
         tags: card.tags, views: card.views || 1,
       });
       for (const tag of card.tags) {
-        tagFrequency[tag] = (tagFrequency[tag] || 0) + 1;
+        tagFreq[tag] = (tagFreq[tag] || 0) + 1;
         tagSet.add(tag);
         links.push({ source: card.id, target: `tag:${tag}` });
       }
     }
-
     for (const tag of tagSet) {
       nodes.push({ id: `tag:${tag}`, type: 'tag', label: tag });
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ nodes, links, tagFrequency }) };
+    return { statusCode: 200, headers: hdrs, body: JSON.stringify({ nodes, links, tagFrequency: tagFreq }) };
   } catch (err) {
-    console.error('Network error:', err);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: '加载失败' }) };
+    console.error('Network:', err);
+    return { statusCode: 500, headers: hdrs, body: JSON.stringify({ error: '加载失败' }) };
   }
 };

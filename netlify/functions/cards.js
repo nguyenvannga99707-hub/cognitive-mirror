@@ -1,50 +1,43 @@
 /**
- * GET /.netlify/functions/cards — 卡片列表（Netlify Blob）
+ * GET /.netlify/functions/cards — 卡片列表（Supabase）
  */
-import { getStore } from "@netlify/blobs";
-
-const cardsStore = getStore("cards");
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 exports.handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-  };
-
+  const hdrs = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
+    return { statusCode: 204, headers: { ...hdrs, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   }
 
   try {
     const params = new URLSearchParams(event.queryStringParameters || '');
     const cardId = params.get('id');
 
-    // 单张卡片
     if (cardId) {
-      const raw = await cardsStore.get(`card:${cardId}`);
-      if (!raw) return { statusCode: 404, headers, body: JSON.stringify({ error: '卡片不存在' }) };
-      return { statusCode: 200, headers, body: JSON.stringify({ card: JSON.parse(raw) }) };
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/cards?id=eq.${encodeURIComponent(cardId)}`, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      });
+      const data = await res.json();
+      if (!data[0]) return { statusCode: 404, headers: hdrs, body: JSON.stringify({ error: '卡片不存在' }) };
+      return { statusCode: 200, headers: hdrs, body: JSON.stringify({ card: data[0] }) };
     }
 
-    // 列表
     const limit = Math.min(parseInt(params.get('limit') || '50'), 100);
-    const { blobs } = await cardsStore.list({ prefix: 'card:' });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/cards?select=*&order=timestamp.desc&limit=${limit}`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+    });
+    const cards = await res.json();
 
-    // 按时间倒序取最新 N 条
-    const entries = [];
-    for (const blob of blobs) {
-      const raw = await cardsStore.get(blob.key);
-      if (raw) entries.push(JSON.parse(raw));
-    }
-    entries.sort((a, b) => b.timestamp - a.timestamp);
+    // 总数
+    const countRes = await fetch(`${SUPABASE_URL}/rest/v1/cards?select=count`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'count=exact' },
+    });
+    const total = parseInt(countRes.headers.get('content-range')?.split('/')[1] || '0');
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ cards: entries.slice(0, limit), total: entries.length }),
-    };
+    return { statusCode: 200, headers: hdrs, body: JSON.stringify({ cards, total }) };
   } catch (err) {
-    console.error('Cards error:', err);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: '加载失败' }) };
+    console.error('Cards:', err);
+    return { statusCode: 500, headers: hdrs, body: JSON.stringify({ error: '加载失败' }) };
   }
 };

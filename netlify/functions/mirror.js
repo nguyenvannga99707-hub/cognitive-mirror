@@ -1,29 +1,32 @@
 /**
- * 认知镜 — Netlify Function（Netlify Blob 持久化）
- * POST /.netlify/functions/mirror
+ * 认知镜 — POST /.netlify/functions/mirror（Supabase 持久化）
  */
-import { getStore } from "@netlify/blobs";
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const DAILY_LIMIT = parseInt(process.env.DAILY_LIMIT || '3');
 
-const cardsStore = getStore("cards");
-const rateStore = getStore("ratelimit");
-
-function ipHash(headers) {
-  const ip = headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  let hash = 0;
-  for (let i = 0; i < ip.length; i++) {
-    hash = ((hash << 5) - hash) + ip.charCodeAt(i); hash |= 0;
+async function supabase(path, options = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    ...options,
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Supabase ${res.status}: ${err}`);
   }
-  return Math.abs(hash).toString(36);
+  return res;
 }
 
-async function checkRateLimit(ipKey, limit = 3) {
-  const today = new Date().toISOString().slice(0, 10);
-  const key = `${today}:${ipKey}`;
-  const raw = await rateStore.get(key);
-  const current = raw ? parseInt(raw) : 0;
-  if (current >= limit) return { blocked: true, remaining: 0 };
-  await rateStore.put(key, String(current + 1));
-  return { blocked: false, remaining: limit - current - 1 };
+function ipHash(h) {
+  const ip = h['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  let hash = 0;
+  for (let i = 0; i < ip.length; i++) hash = ((hash << 5) - hash) + ip.charCodeAt(i);
+  return Math.abs(hash).toString(36);
 }
 
 function generateCardId() {
@@ -31,80 +34,69 @@ function generateCardId() {
 }
 
 exports.handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-  };
-
+  const hdrs = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
+    return { statusCode: 204, headers: { ...hdrs, 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   }
-
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
+    return { statusCode: 405, headers: hdrs, body: JSON.stringify({ error: 'POST only' }) };
   }
 
   try {
     const { question } = JSON.parse(event.body || '{}');
     if (!question || question.length < 3) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: '问题太短了' }) };
+      return { statusCode: 400, headers: hdrs, body: JSON.stringify({ error: '问题太短了' }) };
     }
 
-    // 限流（Blob 持久化，跨实例共享）
-    const limit = parseInt(process.env.DAILY_LIMIT || '3');
-    const { blocked, remaining } = await checkRateLimit(ipHash(event.headers), limit);
-    if (blocked) {
-      return { statusCode: 429, headers, body: JSON.stringify({ error: `今天 ${limit} 次用完了，明天再来。`, remaining: 0 }) };
+    // 限流
+    const today = new Date().toISOString().slice(0, 10);
+    const ip = ipHash(event.headers);
+    const rkey = `${today}:${ip}`;
+    const rateRes = await supabase(`ratelimit?rkey=eq.${encodeURIComponent(rkey)}`);
+    const rateData = await rateRes.json();
+    const current = rateData[0]?.count || 0;
+    if (current >= DAILY_LIMIT) {
+      return { statusCode: 429, headers: hdrs, body: JSON.stringify({ error: `今天 ${DAILY_LIMIT} 次用完了，明天再来。`, remaining: 0 }) };
     }
+    // Upsert 限流
+    await supabase('ratelimit', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ rkey, count: current + 1 }),
+    });
 
+    // DeepSeek
     const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: '未配置 API key' }) };
-    }
-
-    const prompt = `你是一个"认知镜"——专门帮人解耦思维中的纠缠。
-
-用户问题：${question}
-
-任务：
-1. **解耦分析**：找出问题中耦合在一起的不同事情，分开它们。不解决，只是让真相浮现。200-400字。
-2. **一句金句**：≤25字，像禅宗机锋。
-3. **标签**：3-5个关键词。
-
-严格返回JSON：{"analysis":"...","quote":"...","tags":["..."]}`;
+    if (!apiKey) return { statusCode: 500, headers: hdrs, body: JSON.stringify({ error: '未配置 API key' }) };
 
     const dsRes = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.8,
-        max_tokens: 1024,
+        messages: [{ role: 'user', content: `你是一个"认知镜"。用户问题：${question}\n任务：1.解耦分析200-400字 2.一句金句≤25字 3.3-5个标签。严格返回JSON：{"analysis":"...","quote":"...","tags":["..."]}` }],
+        temperature: 0.8, max_tokens: 1024,
       }),
     });
-
-    if (!dsRes.ok) {
-      return { statusCode: 502, headers, body: JSON.stringify({ error: `AI 调用失败 (${dsRes.status})` }) };
-    }
+    if (!dsRes.ok) return { statusCode: 502, headers: hdrs, body: JSON.stringify({ error: 'AI 调用失败' }) };
 
     const dsData = await dsRes.json();
-    const rawContent = dsData.choices?.[0]?.message?.content || '';
-    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-    const cardData = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: rawContent, quote: '', tags: [] };
+    const raw = dsData.choices?.[0]?.message?.content || '';
+    const m = raw.match(/\{[\s\S]*\}/);
+    const cd = m ? JSON.parse(m[0]) : { analysis: raw, quote: '', tags: [] };
 
-    // 存卡片到 Blob
+    // 存 Supabase
     const cardId = generateCardId();
-    const card = { id: cardId, timestamp: Date.now(), question, views: 1, ...cardData };
-    await cardsStore.put(`card:${cardId}`, JSON.stringify(card));
+    const card = { id: cardId, timestamp: Date.now(), question, views: 1, ...cd };
+    await supabase('cards', { method: 'POST', body: JSON.stringify(card) });
 
     return {
       statusCode: 200,
-      headers: { ...headers, 'X-Mirror-Remaining': String(remaining), 'X-Mirror-CardId': cardId },
-      body: JSON.stringify({ ...card, remaining }),
+      headers: { ...hdrs, 'X-Mirror-Remaining': String(DAILY_LIMIT - current - 1), 'X-Mirror-CardId': cardId },
+      body: JSON.stringify({ ...card, remaining: DAILY_LIMIT - current - 1 }),
     };
   } catch (err) {
-    console.error('Mirror error:', err);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: '镜子碎了，稍等再试' }) };
+    console.error('Mirror:', err);
+    return { statusCode: 500, headers: hdrs, body: JSON.stringify({ error: '镜子碎了' }) };
   }
 };
