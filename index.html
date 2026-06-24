@@ -390,12 +390,31 @@ const SUPABASE_URL = 'https://huxjrjovoxwoolxmdgub.supabase.co';
 const SUPABASE_KEY = 'sb_pub...ZEt';
 const DEEPSEEK_KEY = (() => {
   let k = localStorage.getItem('mirror_ds_key');
-  if (!k) {
-    k = prompt('🔑 请输入 DeepSeek API Key（只存你本地浏览器）：');
-    if (k) localStorage.setItem('mirror_ds_key', k);
-  }
   return k || '';
 })();
+
+// key 输入界面
+if (!DEEPSEEK_KEY) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.querySelector('.mirror-container');
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg-card);border:1px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:20px;text-align:left';
+    box.innerHTML = `
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">🔑 首次使用请输入 DeepSeek API Key（只存你本地）</div>
+      <div style="display:flex;gap:8px">
+        <input id="key-input" type="password" placeholder="sk-..." style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-deep);color:var(--text-primary);font:inherit;font-size:14px">
+        <button id="key-save" style="padding:10px 18px;border-radius:8px;background:var(--accent);color:#0a0f;border:none;font-weight:600;cursor:pointer;white-space:nowrap">保存</button>
+      </div>
+    `;
+    container.insertBefore(box, container.firstChild);
+    document.getElementById('key-save').onclick = () => {
+      const v = document.getElementById('key-input').value.trim();
+      if (!v) return;
+      localStorage.setItem('mirror_ds_key', v);
+      location.reload();
+    };
+  });
+}
 
 // ==================== 全局状态 ====================
 let cardsCache = [];
