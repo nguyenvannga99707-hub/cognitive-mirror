@@ -1,13 +1,11 @@
 /**
- * 认知镜 — Netlify Function
+ * 认知镜 — Netlify Function（Netlify Blob 持久化）
  * POST /.netlify/functions/mirror
  */
+import { getStore } from "@netlify/blobs";
 
-// 内存存储
-if (!globalThis.__mirrorStore) globalThis.__mirrorStore = new Map();
-if (!globalThis.__rateStore) globalThis.__rateStore = new Map();
-const store = globalThis.__mirrorStore;
-const rateStore = globalThis.__rateStore;
+const cardsStore = getStore("cards");
+const rateStore = getStore("ratelimit");
 
 function ipHash(headers) {
   const ip = headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
@@ -18,12 +16,13 @@ function ipHash(headers) {
   return Math.abs(hash).toString(36);
 }
 
-function checkRateLimit(ipKey, limit = 3) {
+async function checkRateLimit(ipKey, limit = 3) {
   const today = new Date().toISOString().slice(0, 10);
   const key = `${today}:${ipKey}`;
-  const current = rateStore.get(key) || 0;
+  const raw = await rateStore.get(key);
+  const current = raw ? parseInt(raw) : 0;
   if (current >= limit) return { blocked: true, remaining: 0 };
-  rateStore.set(key, current + 1);
+  await rateStore.put(key, String(current + 1));
   return { blocked: false, remaining: limit - current - 1 };
 }
 
@@ -37,7 +36,6 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Origin': '*',
   };
 
-  // CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   }
@@ -52,9 +50,9 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: '问题太短了' }) };
     }
 
-    // 限流
+    // 限流（Blob 持久化，跨实例共享）
     const limit = parseInt(process.env.DAILY_LIMIT || '3');
-    const { blocked, remaining } = checkRateLimit(ipHash(event.headers), limit);
+    const { blocked, remaining } = await checkRateLimit(ipHash(event.headers), limit);
     if (blocked) {
       return { statusCode: 429, headers, body: JSON.stringify({ error: `今天 ${limit} 次用完了，明天再来。`, remaining: 0 }) };
     }
@@ -64,7 +62,6 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: '未配置 API key' }) };
     }
 
-    // 调用 DeepSeek（非流式）
     const prompt = `你是一个"认知镜"——专门帮人解耦思维中的纠缠。
 
 用户问题：${question}
@@ -96,24 +93,14 @@ exports.handler = async (event) => {
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     const cardData = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: rawContent, quote: '', tags: [] };
 
-    // 存卡片
+    // 存卡片到 Blob
     const cardId = generateCardId();
-    const card = {
-      id: cardId,
-      timestamp: Date.now(),
-      question,
-      views: 1,
-      ...cardData,
-    };
-    store.set(cardId, card);
+    const card = { id: cardId, timestamp: Date.now(), question, views: 1, ...cardData };
+    await cardsStore.put(`card:${cardId}`, JSON.stringify(card));
 
     return {
       statusCode: 200,
-      headers: {
-        ...headers,
-        'X-Mirror-Remaining': String(remaining),
-        'X-Mirror-CardId': cardId,
-      },
+      headers: { ...headers, 'X-Mirror-Remaining': String(remaining), 'X-Mirror-CardId': cardId },
       body: JSON.stringify({ ...card, remaining }),
     };
   } catch (err) {
