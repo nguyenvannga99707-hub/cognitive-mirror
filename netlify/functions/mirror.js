@@ -98,6 +98,6 @@ exports.handler = async (event) => {
     };
   } catch (err) {
     console.error('Mirror:', err);
-    return { statusCode: 500, headers: hdrs, body: JSON.stringify({ error: '镜子碎了', detail: err.message?.slice(0, 300) }) };
+    return { statusCode: 500, headers: hdrs, body: JSON.stringify({ error: '镜子碎了' }) };
   }
 };
