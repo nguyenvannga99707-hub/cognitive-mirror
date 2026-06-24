@@ -530,7 +530,7 @@ document.getElementById('input-question').addEventListener('keydown', (e) => {
 // ==================== 卡片墙 ====================
 async function loadCards() {
   try {
-    const res = await api('GET', '/api/cards?limit=100');
+    const res = await api('GET', '/api/cards?limit=9999');
     if (res.ok) {
       const data = await res.json();
       cardsCache = data.cards || [];
