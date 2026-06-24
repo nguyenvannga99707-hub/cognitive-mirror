@@ -413,12 +413,18 @@ async function api(method, path, body) {
     });
     return res;
   }
-  // cards / network → Supabase REST
-  if (path === '/api/cards') {
-    const limit = 9999;
+  // cards → Supabase REST
+  if (path.startsWith('/api/cards')) {
+    const urlParams = new URLSearchParams(path.includes('?') ? path.split('?')[1] : '');
+    // 单张卡片
+    if (urlParams.get('id')) {
+      const res = await supabaseREST(`cards?id=eq.${encodeURIComponent(urlParams.get('id'))}`);
+      const data = await res.json();
+      return { ok: true, json: () => ({ card: data[0] || null }) };
+    }
+    const limit = parseInt(urlParams.get('limit') || '9999');
     const res = await supabaseREST(`cards?select=*&order=timestamp.desc&limit=${limit}`);
     const cards = await res.json();
-    // 模拟旧格式
     return { ok: true, json: () => ({ cards, total: cards.length }) };
   }
   if (path === '/api/network') {
