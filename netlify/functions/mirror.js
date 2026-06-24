@@ -42,15 +42,10 @@ exports.handler = async (event) => {
     // 诊断
     if (event.httpMethod === 'GET') {
       try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/cards?select=count`, {
-          headers: { 'apikey': SUPABASE_SECRET_KEY, 'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`, 'Prefer': 'count=exact' },
-        });
-        const text = await res.text();
-        return { statusCode: 200, headers: hdrs, body: JSON.stringify({ 
-          supabase_url: SUPABASE_URL?.slice(0,30)+'...',
-          key_set: !!SUPABASE_SECRET_KEY, key_len: (SUPABASE_SECRET_KEY||'').length,
-          status: res.status, body_preview: text.slice(0,200)
-        })};
+        const envKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('SUPA') || k.toUpperCase().includes('DEEPSEEK'));
+        const envVals = {};
+        for (const k of envKeys) envVals[k] = (process.env[k]||'').slice(0, 10) + '...';
+        return { statusCode: 200, headers: hdrs, body: JSON.stringify({ envKeys, envVals }) };
       } catch(e) {
         return { statusCode: 200, headers: hdrs, body: JSON.stringify({ error: e.message }) };
       }
