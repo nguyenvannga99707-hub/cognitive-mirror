@@ -2,7 +2,7 @@
  * GET /.netlify/functions/network — 知识网络（Supabase）
  */
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 
 exports.handler = async (event) => {
   const hdrs = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
@@ -12,7 +12,7 @@ exports.handler = async (event) => {
 
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/cards?select=*&order=timestamp.desc&limit=200`, {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      headers: { 'apikey': SUPABASE_SECRET_KEY, 'Authorization': `Bearer ${SUPABASE_SECRET_KEY}` },
     });
     const cards = await res.json();
 

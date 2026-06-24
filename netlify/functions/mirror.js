@@ -2,14 +2,14 @@
  * 认知镜 — POST /.netlify/functions/mirror（Supabase 持久化）
  */
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 const DAILY_LIMIT = parseInt(process.env.DAILY_LIMIT || '3');
 
 async function supabase(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'apikey': SUPABASE_SECRET_KEY,
+      'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
       'Content-Type': 'application/json',
       ...options.headers,
     },
