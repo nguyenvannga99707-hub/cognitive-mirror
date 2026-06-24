@@ -529,12 +529,12 @@ async function api(method, path, body) {
     const alen = (cd.analysis || '').length;
     const rarity = alen > 250 && cd.quote ? 'SSR' : alen > 150 ? 'SR' : alen > 80 ? 'R' : 'N';
     const cardId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
-    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, ...cd, remaining: '∞' };
+    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, ...cd };
     await fetch(`${SUPABASE_URL}/rest/v1/cards`, {
       method: 'POST',
       headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify(card),
-    }).catch(()=>{});
+    }).catch(e => console.error('Supabase POST failed:', e));
     return { ok: true, json: () => card, headers: new Map([['X-Mirror-CardId', cardId]]) };
   }
   // cards → Supabase REST
