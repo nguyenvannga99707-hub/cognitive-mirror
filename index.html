@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>认知镜</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+/* ============ 全局 ============ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep: #08080f;
+  --bg-card: #12121a;
+  --bg-card-hover: #1a1a26;
+  --border: #1e1e2e;
+  --border-glow: #2a2a3a;
+  --text-primary: #e8e8ed;
+  --text-secondary: #8888a0;
+  --text-muted: #555570;
+  --accent: #d4a853;
+  --accent-glow: rgba(212,168,83,0.25);
+  --accent-subtle: rgba(212,168,83,0.08);
+  --danger: #e0556a;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ============ 导航栏 ============ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 14px 20px;
+  background: rgba(8,8,15,0.85);
+  backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-tab {
+  padding: 8px 20px; border-radius: 20px;
+  background: transparent; color: var(--text-muted);
+  border: none; cursor: pointer; font-size: 14px; font-family: var(--font);
+  transition: all 0.25s ease;
+}
+.nav-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.04); }
+.nav-tab.active {
+  color: var(--accent); background: var(--accent-subtle);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.nav-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 7px;
+  border-radius: 10px; font-size: 11px;
+  background: var(--accent-subtle); color: var(--accent);
+}
+
+/* ============ 主容器 ============ */
+main {
+  padding-top: 80px;
+  max-width: 720px; margin: 0 auto; padding-left: 20px; padding-right: 20px;
+  padding-bottom: 60px;
+}
+
+.view { display: none; }
+.view.active { display: block; animation: fadeIn 0.3s ease; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ============ 镜子视图 ============ */
+.mirror-container {
+  text-align: center;
+}
+
+.mirror-icon {
+  font-size: 64px; margin-bottom: 16px;
+  animation: mirrorPulse 3s ease-in-out infinite;
+}
+@keyframes mirrorPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.mirror-title {
+  font-size: 28px; font-weight: 600; letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+.mirror-subtitle {
+  font-size: 14px; color: var(--text-muted); margin-bottom: 32px;
+}
+
+.remaining {
+  display: inline-block; padding: 4px 14px; border-radius: 14px;
+  font-size: 13px; margin-bottom: 24px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.remaining span { color: var(--accent); font-weight: 600; }
+
+/* 输入区 */
+.input-area {
+  display: flex; gap: 10px; margin-bottom: 24px;
+}
+.input-area textarea {
+  flex: 1; padding: 14px 16px; border-radius: var(--radius);
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-primary); font: inherit; font-size: 15px;
+  resize: none; min-height: 60px; outline: none;
+  transition: border-color 0.3s;
+}
+.input-area textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.input-area textarea::placeholder { color: var(--text-muted); }
+
+.btn-mirror {
+  align-self: flex-end; padding: 12px 28px; border-radius: var(--radius-sm);
+  background: var(--accent); color: #0a0a0f; border: none; cursor: pointer;
+  font: inherit; font-weight: 600; font-size: 15px;
+  transition: all 0.3s; white-space: nowrap;
+}
+.btn-mirror:hover:not(:disabled) {
+  background: #e0b85e; box-shadow: 0 0 20px var(--accent-glow);
+}
+.btn-mirror:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 响应区 */
+.response-area {
+  text-align: left; display: none;
+}
+.response-area.show { display: block; }
+
+.analysis-block, .quote-block {
+  padding: 20px; border-radius: var(--radius); margin-bottom: 16px;
+  background: var(--bg-card); border: 1px solid var(--border);
+}
+
+.analysis-block .label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted); margin-bottom: 10px;
+}
+.analysis-content {
+  font-size: 15px; line-height: 1.8; color: var(--text-primary);
+}
+
+.quote-block {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent-subtle), transparent);
+  font-size: 18px; font-weight: 500; line-height: 1.6;
+  color: var(--accent); text-align: center;
+}
+.quote-block .label { color: var(--accent); opacity: 0.7; }
+
+.cursor-blink {
+  display: inline-block; width: 2px; height: 1em; background: var(--accent);
+  margin-left: 2px; vertical-align: text-bottom;
+  animation: blink 0.8s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.view-card-link {
+  display: none; margin-top: 12px; text-align: center;
+}
+.view-card-link.show { display: block; }
+.view-card-link a {
+  color: var(--accent); text-decoration: none; font-size: 14px;
+  border-bottom: 1px dashed var(--accent);
+  transition: border-color 0.3s;
+}
+.view-card-link a:hover { border-color: transparent; }
+
+/* ============ 卡片墙 ============ */
+.cards-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.cards-header h2 { font-size: 20px; font-weight: 500; }
+
+.btn-draw {
+  padding: 10px 24px; border-radius: 20px;
+  background: var(--accent); color: #0a0a0f; border: none;
+  cursor: pointer; font: inherit; font-weight: 600; font-size: 14px;
+  transition: all 0.3s;
+}
+.btn-draw:hover { box-shadow: 0 0 16px var(--accent-glow); }
+
+.card-stage {
+  perspective: 1200px;
+  display: flex; justify-content: center; align-items: center;
+  min-height: 360px;
+}
+
+.card-inner {
+  position: relative; width: 100%; max-width: 500px; min-height: 280px;
+  transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+  transform-style: preserve-3d;
+}
+.card-inner.flipped { transform: rotateY(180deg); }
+
+.card-face {
+  position: absolute; inset: 0; backface-visibility: hidden;
+  border-radius: var(--radius); padding: 30px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  display: flex; flex-direction: column; justify-content: center;
+}
+
+.card-back {
+  display: flex; align-items: center; justify-content: center;
+}
+.card-back-icon { font-size: 48px; opacity: 0.3; }
+
+.card-front {
+  transform: rotateY(180deg);
+  text-align: left;
+}
+
+.card-question {
+  font-size: 15px; color: var(--text-secondary); margin-bottom: 16px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.card-analysis {
+  font-size: 14px; line-height: 1.7; margin-bottom: 14px;
+}
+.card-quote {
+  font-size: 17px; color: var(--accent); font-weight: 500;
+  margin-bottom: 12px; padding: 10px 0; border-top: 1px solid var(--border);
+}
+.card-tags {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.card-tag {
+  padding: 3px 10px; border-radius: 12px; font-size: 12px;
+  background: var(--accent-subtle); color: var(--accent);
+}
+
+.card-nav {
+  display: flex; justify-content: center; gap: 12px; margin-top: 20px;
+}
+.card-nav button {
+  padding: 8px 18px; border-radius: 16px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+  font: inherit; font-size: 13px; transition: all 0.2s;
+}
+.card-nav button:hover { border-color: var(--accent); color: var(--accent); }
+
+.empty-state {
+  text-align: center; color: var(--text-muted); padding: 40px 0;
+}
+.empty-state span { font-size: 48px; display: block; margin-bottom: 12px; }
+
+/* ============ 知识网络 ============ */
+.network-container {
+  width: 100%; height: 560px;
+  background: var(--bg-card); border-radius: var(--radius);
+  border: 1px solid var(--border); overflow: hidden; position: relative;
+}
+
+#network-svg { width: 100%; height: 100%; }
+
+.network-legend {
+  position: absolute; bottom: 16px; left: 16px;
+  display: flex; gap: 12px; font-size: 12px;
+  background: rgba(8,8,15,0.8); backdrop-filter: blur(10px);
+  padding: 8px 14px; border-radius: 10px;
+}
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+.legend-item { display: flex; align-items: center; color: var(--text-secondary); }
+
+.network-tooltip {
+  position: absolute; display: none; pointer-events: none;
+  padding: 10px 14px; border-radius: 8px;
+  background: #1a1a28; border: 1px solid var(--border);
+  max-width: 260px; font-size: 13px; line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 10;
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 600px) {
+  main { padding-left: 12px; padding-right: 12px; }
+  .mirror-title { font-size: 22px; }
+  .input-area { flex-direction: column; }
+  .btn-mirror { align-self: stretch; }
+}
+
+/* toast 提示 */
+.toast {
+  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+  padding: 10px 24px; border-radius: 20px;
+  background: var(--danger); color: #fff; font-size: 14px;
+  z-index: 200; animation: toastIn 0.3s ease, toastOut 0.3s ease 2.5s forwards;
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+</style>
+</head>
+<body>
+
+<nav>
+  <button class="nav-tab active" data-view="mirror">🪞 镜子</button>
+  <button class="nav-tab" data-view="cards">🎴 卡片墙</button>
+  <button class="nav-tab" data-view="network">🌐 知识网络</button>
+</nav>
+
+<main>
+  <!-- ====== 镜子 ====== -->
+  <div class="view active" id="view-mirror">
+    <div class="mirror-container">
+      <div class="mirror-icon">🪞</div>
+      <div class="mirror-title">认知镜</div>
+      <div class="mirror-subtitle">把你缠住的问题丢进来，帮你解耦。</div>
+      <div class="remaining">今日剩余 <span id="count-remaining">-</span> 次</div>
+
+      <div class="input-area">
+        <textarea id="input-question" placeholder="比如：我到底该不该辞职去做副业…" rows="2"></textarea>
+        <button class="btn-mirror" id="btn-mirror" onclick="sendQuestion()">照镜子</button>
+      </div>
+
+      <div class="response-area" id="response-area">
+        <div class="analysis-block">
+          <div class="label">✦ 解耦分析</div>
+          <div class="analysis-content" id="analysis-content"><span class="cursor-blink"></span></div>
+        </div>
+        <div class="quote-block" id="quote-block" style="display:none">
+          <div class="label">✦ 今日金句</div>
+          <div class="quote-text" id="quote-text"></div>
+        </div>
+        <div class="view-card-link" id="view-card-link">
+          <a href="#" onclick="switchView('cards')">🎴 这张卡片已在卡片墙中 →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 卡片墙 ====== -->
+  <div class="view" id="view-cards">
+    <div class="cards-header">
+      <h2>卡片墙</h2>
+      <button class="btn-draw" id="btn-draw" onclick="drawCard()">🃏 抽一张</button>
+    </div>
+    <div class="card-stage">
+      <div class="card-inner" id="card-inner">
+        <div class="card-face card-back">
+          <div class="card-back-icon">🪞</div>
+        </div>
+        <div class="card-face card-front">
+          <div class="card-question" id="card-question"></div>
+          <div class="card-analysis" id="card-analysis"></div>
+          <div class="card-quote" id="card-quote"></div>
+          <div class="card-tags" id="card-tags"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-nav" id="card-nav" style="display:none">
+      <button onclick="prevCard()">← 上一张</button>
+      <button onclick="drawCard()">🔄 再抽一张</button>
+      <button onclick="nextCard()">下一张 →</button>
+    </div>
+    <div class="empty-state" id="cards-empty">
+      <span>📭</span> 还没有卡片，先去照照镜子吧。
+    </div>
+  </div>
+
+  <!-- ====== 知识网络 ====== -->
+  <div class="view" id="view-network">
+    <div class="network-container" id="network-container">
+      <svg id="network-svg"></svg>
+      <div class="network-tooltip" id="network-tooltip"></div>
+      <div class="network-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#d4a853"></div>问题卡片</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#8888a0"></div>标签</div>
+      </div>
+    </div>
+    <div class="card-nav" style="justify-content:center;margin-top:16px">
+      <span style="font-size:13px;color:var(--text-muted)">🖱️ 拖拽节点 | 滚轮缩放 | 点击卡片查看详情</span>
+    </div>
+  </div>
+</main>
+
+<script>
+// ==================== 全局状态 ====================
+let API_BASE = '';  // 部署时替换为 Worker URL
+let cardsCache = [];
+let cardIndex = 0;
+let mirrorCardId = null;
+let currentTagFilter = null;
+
+// ==================== 视图切换 ====================
+function switchView(name) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-view="${name}"]`).classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(`view-${name}`).classList.add('active');
+  if (name === 'network') loadNetwork();
+  if (name === 'cards') loadCards();
+  if (name === 'mirror') fetchRemaining();
+}
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => switchView(tab.dataset.view));
+});
+
+// ==================== Toast ====================
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ==================== API ====================
+async function api(method, path, body) {
+  try {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(`${API_BASE}${path}`, opts);
+    return res;
+  } catch (err) {
+    toast('网络错误，连接不上镜子服务器。');
+    throw err;
+  }
+}
+
+// ==================== 剩余次数 ====================
+async function fetchRemaining() {
+  try {
+    const res = await api('GET', '/api/cards?limit=1');
+    if (res.ok) {
+      // 从 response 拿不到剩余次数，让用户直接试，失败时才知道
+      document.getElementById('count-remaining').textContent = '...';
+    }
+  } catch {}
+}
+fetchRemaining();
+
+// ==================== 镜子 ====================
+async function sendQuestion() {
+  const input = document.getElementById('input-question');
+  const btn = document.getElementById('btn-mirror');
+  const responseArea = document.getElementById('response-area');
+  const analysisContent = document.getElementById('analysis-content');
+  const quoteBlock = document.getElementById('quote-block');
+  const quoteText = document.getElementById('quote-text');
+  const viewLink = document.getElementById('view-card-link');
+
+  const question = input.value.trim();
+  if (!question || question.length < 3) {
+    toast('多说一点吧，至少 3 个字。');
+    return;
+  }
+
+  // 清空状态
+  btn.disabled = true; btn.textContent = '思考中…';
+  responseArea.classList.add('show');
+  analysisContent.innerHTML = '<span class="cursor-blink"></span>';
+  quoteBlock.style.display = 'none';
+  viewLink.classList.remove('show');
+
+  try {
+    const res = await api('POST', '/api/mirror', { question });
+
+    if (!res.ok) {
+      const err = await res.json();
+      if (res.status === 429) {
+        document.getElementById('count-remaining').textContent = '0';
+        toast(err.error);
+        analysisContent.innerHTML = '<span style="color:var(--text-muted)">今天的镜子已经照完了。明天再来。</span>';
+      } else {
+        toast(err.error || '出了点问题');
+        analysisContent.innerHTML = '<span style="color:var(--danger)">出了点问题，稍等再试。</span>';
+      }
+      btn.disabled = false; btn.textContent = '照镜子';
+      return;
+    }
+
+    // 读取流式响应
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullAnalysis = '';
+    let fullJson = '';
+    let gotAnalysis = false;
+    let quoteRevealed = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+
+      // 一次处理一行 SSE
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed?.choices?.[0]?.delta?.content;
+          if (!content) continue;
+
+          fullJson += content;
+          // 尝试提取实时文本：在 JSON 未结束前展示 analysis 部分
+          if (!gotAnalysis) {
+            const analysisMatch = fullJson.match(/"analysis"\s*:\s*"([^"]*)/);
+            if (analysisMatch && analysisMatch[1].length > 20) {
+              gotAnalysis = true;
+              analysisContent.innerHTML = ''; // 清除光标
+            }
+          }
+          if (gotAnalysis && !quoteRevealed) {
+            // 显示实时文本，但去掉 JSON 标记
+            let display = fullJson
+              .replace(/\{"analysis"\s*:\s*"/, '')
+              .replace(/\{"analysis"\s*:\s*/, '')
+              .replace(/"quote"\s*:\s*"[^"]*/, '')
+              .replace(/"tags"\s*:.*/, '')
+              .replace(/[{"]/g, '');
+            analysisContent.textContent = display;
+          }
+
+          // 检测金句是否出现
+          if (!quoteRevealed && fullJson.includes('"quote"')) {
+            quoteRevealed = true;
+            const quoteMatch = fullJson.match(/"quote"\s*:\s*"([^"]*)"/);
+            if (quoteMatch) {
+              quoteBlock.style.display = 'block';
+              quoteText.textContent = quoteMatch[1];
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // 流结束后，尝试解析完整 JSON
+    try {
+      const jsonMatch = fullJson.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const card = JSON.parse(jsonMatch[0]);
+        analysisContent.textContent = card.analysis;
+        quoteBlock.style.display = 'block';
+        quoteText.textContent = card.quote;
+
+        // 更新剩余次数
+        const remaining = res.headers.get('X-Mirror-Remaining');
+        if (remaining !== null) {
+          document.getElementById('count-remaining').textContent = remaining;
+        }
+
+        // 卡片链接
+        mirrorCardId = res.headers.get('X-Mirror-CardId');
+        if (mirrorCardId) viewLink.classList.add('show');
+      }
+    } catch {
+      // 降级：直接显示收集到的文本
+      analysisContent.textContent = fullJson || '拿到了一些内容，但格式不太对。';
+    }
+  } catch (err) {
+    analysisContent.innerHTML = '<span style="color:var(--danger)">连接断了，再试一次。</span>';
+  }
+
+  btn.disabled = false; btn.textContent = '照镜子';
+  input.value = '';
+}
+
+// Enter 发送
+document.getElementById('input-question').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendQuestion();
+  }
+});
+
+// ==================== 卡片墙 ====================
+async function loadCards() {
+  try {
+    const res = await api('GET', '/api/cards?limit=100');
+    if (res.ok) {
+      const data = await res.json();
+      cardsCache = data.cards || [];
+      if (cardsCache.length === 0) {
+        document.getElementById('card-inner').classList.remove('flipped');
+        document.getElementById('cards-empty').style.display = 'block';
+        document.getElementById('card-nav').style.display = 'none';
+      } else {
+        document.getElementById('cards-empty').style.display = 'none';
+        document.getElementById('card-nav').style.display = 'flex';
+      }
+    }
+  } catch {}
+}
+
+function drawCard() {
+  if (cardsCache.length === 0) {
+    toast('还没有卡片。');
+    return;
+  }
+  cardIndex = Math.floor(Math.random() * cardsCache.length);
+  showCard(cardsCache[cardIndex]);
+}
+
+function prevCard() {
+  if (cardsCache.length === 0) return;
+  cardIndex = (cardIndex - 1 + cardsCache.length) % cardsCache.length;
+  showCard(cardsCache[cardIndex]);
+}
+
+function nextCard() {
+  if (cardsCache.length === 0) return;
+  cardIndex = (cardIndex + 1) % cardsCache.length;
+  showCard(cardsCache[cardIndex]);
+}
+
+function showCard(card) {
+  const inner = document.getElementById('card-inner');
+
+  // 先翻回去
+  if (inner.classList.contains('flipped')) {
+    inner.classList.remove('flipped');
+  }
+
+  // 填充数据
+  document.getElementById('card-question').textContent = card.question || '';
+  document.getElementById('card-analysis').textContent = card.analysis || '';
+  document.getElementById('card-quote').textContent = card.quote || '';
+  const tagsEl = document.getElementById('card-tags');
+  tagsEl.innerHTML = (card.tags || []).map(t => `<span class="card-tag" onclick="filterByTag('${t}')">${t}</span>`).join('');
+
+  // 翻过去
+  setTimeout(() => inner.classList.add('flipped'), 150);
+}
+
+// ==================== 知识网络 ====================
+let networkData = null;
+let simulation = null;
+
+async function loadNetwork() {
+  try {
+    const res = await api('GET', '/api/network');
+    if (!res.ok) return;
+    networkData = await res.json();
+    if (!networkData.nodes || networkData.nodes.length === 0) return;
+    renderNetwork();
+  } catch {}
+}
+
+function renderNetwork() {
+  const container = document.getElementById('network-container');
+  const svg = d3.select('#network-svg');
+  svg.selectAll('*').remove();
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  const g = svg.append('g');
+
+  // 缩放
+  const zoom = d3.zoom().scaleExtent([0.3, 4]).on('zoom', (e) => {
+    g.attr('transform', e.transform);
+  });
+  svg.call(zoom);
+  svg.call(zoom.transform, d3.zoomIdentity.translate(width/2, height/2));
+
+  // 根据 tagFrequency 调整标签节点大小
+  const tagFreq = networkData.tagFrequency || {};
+  const maxFreq = Math.max(...Object.values(tagFreq), 1);
+
+  // 力模拟
+  simulation = d3.forceSimulation(networkData.nodes)
+    .force('link', d3.forceLink(networkData.links).id(d => d.id).distance(80))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(0, 0))
+    .force('collision', d3.forceCollide().radius(d => d.type === 'tag' ? 20 : 14));
+
+  // 连线
+  const link = g.append('g')
+    .selectAll('line')
+    .data(networkData.links)
+    .join('line')
+    .attr('stroke', '#2a2a3a')
+    .attr('stroke-width', 1.2)
+    .attr('stroke-opacity', 0.5);
+
+  // 节点
+  const node = g.append('g')
+    .selectAll('g')
+    .data(networkData.nodes)
+    .join('g')
+    .attr('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  // 卡片节点
+  const cardNodes = node.filter(d => d.type === 'card');
+  cardNodes.append('circle')
+    .attr('r', d => Math.max(4, Math.sqrt(d.views || 1) * 3))
+    .attr('fill', '#d4a853')
+    .attr('opacity', 0.8);
+
+  // 标签节点
+  const tagNodes = node.filter(d => d.type === 'tag');
+  tagNodes.append('circle')
+    .attr('r', d => {
+      const freq = tagFreq[d.label] || 1;
+      return 8 + (freq / maxFreq) * 16;
+    })
+    .attr('fill', '#8888a0')
+    .attr('opacity', 0.5)
+    .attr('stroke', '#555570')
+    .attr('stroke-width', 0.5);
+
+  tagNodes.append('text')
+    .text(d => d.label)
+    .attr('dy', d => {
+      const freq = tagFreq[d.label] || 1;
+      return -(12 + (freq / maxFreq) * 18);
+    })
+    .attr('text-anchor', 'middle')
+    .attr('fill', '#8888a0')
+    .attr('font-size', '11px')
+    .attr('font-family', getComputedStyle(document.body).fontFamily);
+
+  // Tooltip + 点击
+  const tooltip = document.getElementById('network-tooltip');
+  node.on('mouseenter', (e, d) => {
+    if (d.type === 'card') {
+      tooltip.style.display = 'block';
+      tooltip.innerHTML = `<strong>${d.question}</strong><br><span style="color:#8888a0">${(d.tags||[]).join(' · ')}</span>`;
+    } else {
+      tooltip.style.display = 'block';
+      tooltip.innerHTML = `<strong>#${d.label}</strong><br><span style="color:#8888a0">${tagFreq[d.label]||0} 张卡片</span>`;
+    }
+  }).on('mousemove', (e) => {
+    tooltip.style.left = (e.offsetX + 14) + 'px';
+    tooltip.style.top = (e.offsetY - 40) + 'px';
+  }).on('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+
+  node.on('click', (e, d) => {
+    if (d.type === 'tag') {
+      filterByTag(d.label);
+    } else if (d.type === 'card') {
+      // 在卡片墙显示这张卡片
+      switchView('cards');
+      const idx = cardsCache.findIndex(c => c.id === d.id);
+      if (idx >= 0) {
+        cardIndex = idx;
+        showCard(cardsCache[idx]);
+      }
+    }
+  });
+
+  // 更新位置
+  simulation.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+}
+
+function filterByTag(tag) {
+  currentTagFilter = tag;
+  switchView('cards');
+  // 过滤卡片
+  const filtered = cardsCache.filter(c => (c.tags || []).includes(tag));
+  cardsCache = filtered.length > 0 ? filtered : cardsCache;
+  if (cardsCache.length > 0) {
+    cardIndex = 0;
+    showCard(cardsCache[0]);
+  }
+  toast(`已筛选标签: ${tag}`);
+}
+
+// ==================== 初始化 ====================
+// 页面加载时拉剩余次数
+window.addEventListener('DOMContentLoaded', () => {
+  // 如果 URL 有 cardId 参数，跳到卡片
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('card')) {
+    switchView('cards');
+    loadCards().then(() => {
+      const id = params.get('card');
+      const idx = cardsCache.findIndex(c => c.id === id);
+      if (idx >= 0) { cardIndex = idx; showCard(cardsCache[idx]); }
+    });
+  }
+});
+</script>
+</body>
+</html>
