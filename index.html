@@ -588,17 +588,7 @@ function toast(msg) {
   setTimeout(() => el.remove(), 3000);
 }
 
-// ==================== 剩余次数 ====================
-async function fetchRemaining() {
-  try {
-    const res = await api('GET', '/api/cards?limit=1');
-    if (res.ok) {
-      // 从 response 拿不到剩余次数，让用户直接试，失败时才知道
-      document.getElementById('count-remaining').textContent = '...';
-    }
-  } catch {}
-}
-fetchRemaining();
+// ==================== 剩余次数（localStorage，每日3次） ====================
 
 // ==================== 镜子（打字机动画版） ====================
 function formatAnalysis(text) {
@@ -625,6 +615,24 @@ async function typewriter(el, text, speed = 40) {
   }
 }
 
+// ==================== 每日限流 ====================
+function mirrorLimit() {
+  const today = new Date().toISOString().slice(0,10);
+  const key = 'mirror_' + today;
+  const count = parseInt(localStorage.getItem(key) || '0');
+  return { count, remaining: Math.max(0, 3 - count), ok: count < 3 };
+}
+function mirrorUse() {
+  const today = new Date().toISOString().slice(0,10);
+  const key = 'mirror_' + today;
+  localStorage.setItem(key, (parseInt(localStorage.getItem(key)||'0')) + 1);
+}
+
+async function fetchRemaining() {
+  const lim = mirrorLimit();
+  document.getElementById('count-remaining').textContent = lim.remaining;
+}
+
 async function sendQuestion() {
   const input = document.getElementById('input-question');
   const btn = document.getElementById('btn-mirror');
@@ -637,6 +645,14 @@ async function sendQuestion() {
   const question = input.value.trim();
   if (!question || question.length < 3) {
     toast('多说一点吧，至少 3 个字。');
+    return;
+  }
+
+  // 每日限流
+  const lim = mirrorLimit();
+  if (!lim.ok) {
+    toast('今天的 3 次镜子已经照完了，明天再来。');
+    document.getElementById('count-remaining').textContent = '0';
     return;
   }
 
@@ -670,6 +686,10 @@ async function sendQuestion() {
     if (data.remaining !== undefined) {
       document.getElementById('count-remaining').textContent = data.remaining;
     }
+
+    // 扣次数 + 更新显示
+    mirrorUse();
+    document.getElementById('count-remaining').textContent = mirrorLimit().remaining;
 
     // 打字机动画显示解耦分析
     await typewriter(analysisContent, formatAnalysis(data.analysis || '收到了一些内容…'));
@@ -989,6 +1009,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+fetchRemaining();
 </script>
 </body>
 </html>
