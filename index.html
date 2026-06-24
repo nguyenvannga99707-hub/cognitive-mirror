@@ -199,6 +199,7 @@ main {
 
 .card-inner {
   position: relative; width: 100%; max-width: 500px; min-height: 280px;
+  max-height: 75vh;
   transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
   transform-style: preserve-3d;
 }
@@ -208,7 +209,8 @@ main {
   position: absolute; inset: 0; backface-visibility: hidden;
   border-radius: var(--radius); padding: 30px;
   background: var(--bg-card); border: 1px solid var(--border);
-  display: flex; flex-direction: column; justify-content: center;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  overflow-y: auto;
 }
 
 .card-back {
@@ -226,8 +228,9 @@ main {
   padding-bottom: 14px; border-bottom: 1px solid var(--border);
 }
 .card-analysis {
-  font-size: 14px; line-height: 1.7; margin-bottom: 14px;
+  font-size: 14px; line-height: 1.9; margin-bottom: 14px;
   white-space: pre-wrap; position: relative;
+  color: #c8c8d8;
 }
 .card-analysis.collapsed {
   max-height: 5.5em; overflow: hidden;
