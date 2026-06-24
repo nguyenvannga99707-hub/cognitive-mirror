@@ -1,14 +1,14 @@
 /**
  * 认知镜 — Supabase Edge Function（mirror）
- * 部署：supabase functions deploy mirror
+ * 部署：粘贴到 Supabase → Edge Functions → 新建 → 直接 Deploy
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const DAILY_LIMIT = parseInt(Deno.env.get("DAILY_LIMIT") || "3");
+const DEEPSEEK_A...528";
+const SUPABASE_UR...supabase.co";
+const SUPABASE_...HpHv";
+const DAILY_LIMIT = 3;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -31,14 +31,11 @@ serve(async (req) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "POST only" }), { status: 405, headers: hdrs });
   }
-
   try {
     const { question } = await req.json();
     if (!question || question.length < 3) {
       return new Response(JSON.stringify({ error: "问题太短了" }), { status: 400, headers: hdrs });
     }
-
-    // 限流
     const today = new Date().toISOString().slice(0, 10);
     const ip = ipHash(req.headers);
     const { data: rateData } = await supabase.from("ratelimit").select("count").eq("rkey", `${today}:${ip}`).maybeSingle();
@@ -48,7 +45,6 @@ serve(async (req) => {
     }
     await supabase.from("ratelimit").upsert({ rkey: `${today}:${ip}`, count: current + 1 }, { onConflict: "rkey" });
 
-    // DeepSeek
     const dsRes = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${DEEPSEEK_API_KEY}` },
@@ -62,17 +58,13 @@ serve(async (req) => {
       }),
     });
     if (!dsRes.ok) return new Response(JSON.stringify({ error: "AI 调用失败" }), { status: 502, headers: hdrs });
-
     const dsData = await dsRes.json();
     const raw = dsData.choices?.[0]?.message?.content || "";
     const m = raw.match(/\{[\s\S]*\}/);
     const cd = m ? JSON.parse(m[0]) : { analysis: raw, quote: "", tags: [] };
-
-    // 存 Supabase
     const cardId = genId();
     const card = { id: cardId, timestamp: Date.now(), question, views: 1, ...cd };
     await supabase.from("cards").insert(card);
-
     return new Response(JSON.stringify({ ...card, remaining: DAILY_LIMIT - current - 1 }), { status: 200, headers: hdrs });
   } catch (err) {
     console.error(err);
