@@ -388,7 +388,14 @@ main {
 // ==================== Supabase 配置 ====================
 const SUPABASE_URL = 'https://huxjrjovoxwoolxmdgub.supabase.co';
 const SUPABASE_KEY = 'sb_pub...ZEt';
-const DEEPSEEK_KEY = 'sk-3...528';
+const DEEPSEEK_KEY = (() => {
+  let k = localStorage.getItem('mirror_ds_key');
+  if (!k) {
+    k = prompt('🔑 请输入 DeepSeek API Key（只存你本地浏览器）：');
+    if (k) localStorage.setItem('mirror_ds_key', k);
+  }
+  return k || '';
+})();
 
 // ==================== 全局状态 ====================
 let cardsCache = [];
