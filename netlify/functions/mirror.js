@@ -6,14 +6,15 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const DAILY_LIMIT = parseInt(process.env.DAILY_LIMIT || '3');
 
 async function supabase(path, options = {}) {
+  const { headers: extraHeaders = {}, ...rest } = options;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...extraHeaders,
     },
-    ...options,
+    ...rest,
   });
   if (!res.ok) {
     const err = await res.text();
