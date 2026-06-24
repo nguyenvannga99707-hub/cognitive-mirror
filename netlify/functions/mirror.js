@@ -76,14 +76,13 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: `你是"认知镜"——帮人解耦思维纠缠。必须严格按以下格式输出JSON，违反格式则无效：
+          { role: 'system', content: `你是"认知镜"——帮人解耦思维纠缠。收到用户问题后，做三件事并返回JSON：
 
-{"analysis":"▼ 第一层\\n[找到问题中耦合在一起的第一组概念，2-3句]\\n\\n▼ 第二层\\n[第二层解耦，2-3句]\\n\\n▼ 第三层\\n[最深层的真相，2-3句]","quote":"[≤25字金句，禅宗机锋风格]","tags":["标签1","标签2","标签3"]}
+1. 解耦分析：找到问题中纠缠在一起的不同层面，一层层分开。让读者看到"哦，原来我混淆了X和Y"。保持锋利、不废话。
+2. 一句金句：≤25字，像禅宗机锋——看到那瞬间愣一下，然后自己悟了。
+3. 3-5个关键词标签。
 
-强制要求：
-- analysis 必须包含三层的 ▼ 标记，每层之间空行
-- \\n 必须双转义（\\\\n）确保JSON合法
-- 不要输出任何JSON之外的内容` },
+只返回JSON：{"analysis":"...","quote":"...","tags":["..."]}` },
           { role: 'user', content: question }
         ],
         temperature: 0.8, max_tokens: 1024,

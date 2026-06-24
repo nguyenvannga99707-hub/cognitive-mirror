@@ -441,10 +441,12 @@ fetchRemaining();
 
 // ==================== 镜子（打字机动画版） ====================
 function formatAnalysis(text) {
-  // 如果 AI 已经用了 ▼ 分层，原样返回
   if (text.includes('▼')) return text;
-  // 兜底：在句号、问号、感叹号后自动换行
-  return text.replace(/([。！？])\s*/g, '$1\n');
+  // 识别数字列表标记（1）2）3、等）
+  text = text.replace(/(\d)[）)]\s*/g, '\n$1) ');
+  // 在句号、问号、感叹号后换行
+  text = text.replace(/([。！？])\s*/g, '$1\n');
+  return text.trim();
 }
 
 async function typewriter(el, text, speed = 40) {
