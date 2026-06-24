@@ -39,6 +39,22 @@ exports.handler = async (event) => {
     return { statusCode: 204, headers: { ...hdrs, 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   }
   if (event.httpMethod !== 'POST') {
+    // 诊断
+    if (event.httpMethod === 'GET') {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/cards?select=count`, {
+          headers: { 'apikey': SUPABASE_SECRET_KEY, 'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`, 'Prefer': 'count=exact' },
+        });
+        const text = await res.text();
+        return { statusCode: 200, headers: hdrs, body: JSON.stringify({ 
+          supabase_url: SUPABASE_URL?.slice(0,30)+'...',
+          key_set: !!SUPABASE_SECRET_KEY, key_len: (SUPABASE_SECRET_KEY||'').length,
+          status: res.status, body_preview: text.slice(0,200)
+        })};
+      } catch(e) {
+        return { statusCode: 200, headers: hdrs, body: JSON.stringify({ error: e.message }) };
+      }
+    }
     return { statusCode: 405, headers: hdrs, body: JSON.stringify({ error: 'POST only' }) };
   }
 
