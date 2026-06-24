@@ -440,6 +440,13 @@ async function fetchRemaining() {
 fetchRemaining();
 
 // ==================== 镜子（打字机动画版） ====================
+function formatAnalysis(text) {
+  // 如果 AI 已经用了 ▼ 分层，原样返回
+  if (text.includes('▼')) return text;
+  // 兜底：在句号、问号、感叹号后自动换行
+  return text.replace(/([。！？])\s*/g, '$1\n');
+}
+
 async function typewriter(el, text, speed = 40) {
   el.textContent = '';
   for (let i = 0; i < text.length; i++) {
@@ -495,7 +502,7 @@ async function sendQuestion() {
     }
 
     // 打字机动画显示解耦分析
-    await typewriter(analysisContent, data.analysis || '收到了一些内容…');
+    await typewriter(analysisContent, formatAnalysis(data.analysis || '收到了一些内容…'));
 
     // 延迟显示金句
     if (data.quote) {
@@ -579,7 +586,7 @@ function showCard(card) {
 
   // 填充数据
   document.getElementById('card-question').textContent = card.question || '';
-  document.getElementById('card-analysis').textContent = card.analysis || '';
+  document.getElementById('card-analysis').textContent = formatAnalysis(card.analysis || '');
   document.getElementById('card-quote').textContent = card.quote || '';
   const tagsEl = document.getElementById('card-tags');
   tagsEl.innerHTML = (card.tags || []).map(t => `<span class="card-tag" onclick="filterByTag('${t}')">${t}</span>`).join('');

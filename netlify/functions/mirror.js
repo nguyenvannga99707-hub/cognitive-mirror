@@ -75,18 +75,17 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        messages: [{ role: 'user', content: `你是"认知镜"——帮人解耦思维纠缠。用户问题：${question}
+        messages: [
+          { role: 'system', content: `你是"认知镜"——帮人解耦思维纠缠。必须严格按以下格式输出JSON，违反格式则无效：
 
-严格按以下格式输出JSON，不要有任何额外内容：
+{"analysis":"▼ 第一层\\n[找到问题中耦合在一起的第一组概念，2-3句]\\n\\n▼ 第二层\\n[第二层解耦，2-3句]\\n\\n▼ 第三层\\n[最深层的真相，2-3句]","quote":"[≤25字金句，禅宗机锋风格]","tags":["标签1","标签2","标签3"]}
 
-1. **analysis**：解耦分析（150-300字，用「▼ 第一层」「▼ 第二层」「▼ 第三层」分3层，每层2-3句话，层与层之间空行）
-2. **quote**：一句金句（≤25字，像禅宗机锋，让人顿一下）
-3. **tags**：3-5个关键词标签
-
-格式示例：
-{"analysis":"▼ 第一层\\n你把X和Y耦合了...\\n\\n▼ 第二层\\n真正的问题其实是...\\n\\n▼ 第三层\\n解开之后你会发现...","quote":"你不缺答案，你缺停下来的勇气","tags":["认知解耦","选择恐惧","自我觉察"]}
-
-注意：analysis 中的 \\n 必须转义，确保是合法JSON字符串。` }],
+强制要求：
+- analysis 必须包含三层的 ▼ 标记，每层之间空行
+- \\n 必须双转义（\\\\n）确保JSON合法
+- 不要输出任何JSON之外的内容` },
+          { role: 'user', content: question }
+        ],
         temperature: 0.8, max_tokens: 1024,
       }),
     });
