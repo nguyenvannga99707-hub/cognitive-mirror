@@ -748,9 +748,10 @@ function nextCard() {
 
 function computeRarity(card) {
   const alen = (card.analysis || '').length;
-  if (alen > 250 && card.quote) return 'SSR';
-  if (alen > 150) return 'SR';
-  if (alen > 80) return 'R';
+  console.log('computeRarity:', alen, 'chars, quote:', !!card.quote);
+  if (alen > 200 && card.quote) return 'SSR';
+  if (alen > 120) return 'SR';
+  if (alen > 50) return 'R';
   return 'N';
 }
 
