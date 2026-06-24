@@ -75,7 +75,18 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        messages: [{ role: 'user', content: `你是一个"认知镜"。用户问题：${question}\n任务：1.解耦分析200-400字 2.一句金句≤25字 3.3-5个标签。严格返回JSON：{"analysis":"...","quote":"...","tags":["..."]}` }],
+        messages: [{ role: 'user', content: `你是"认知镜"——帮人解耦思维纠缠。用户问题：${question}
+
+严格按以下格式输出JSON，不要有任何额外内容：
+
+1. **analysis**：解耦分析（150-300字，用「▼ 第一层」「▼ 第二层」「▼ 第三层」分3层，每层2-3句话，层与层之间空行）
+2. **quote**：一句金句（≤25字，像禅宗机锋，让人顿一下）
+3. **tags**：3-5个关键词标签
+
+格式示例：
+{"analysis":"▼ 第一层\\n你把X和Y耦合了...\\n\\n▼ 第二层\\n真正的问题其实是...\\n\\n▼ 第三层\\n解开之后你会发现...","quote":"你不缺答案，你缺停下来的勇气","tags":["认知解耦","选择恐惧","自我觉察"]}
+
+注意：analysis 中的 \\n 必须转义，确保是合法JSON字符串。` }],
         temperature: 0.8, max_tokens: 1024,
       }),
     });
