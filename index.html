@@ -388,33 +388,6 @@ main {
 // ==================== Supabase 配置 ====================
 const SUPABASE_URL = 'https://huxjrjovoxwoolxmdgub.supabase.co';
 const SUPABASE_KEY = 'sb_pub...ZEt';
-const DEEPSEEK_KEY = (() => {
-  let k = localStorage.getItem('mirror_ds_key');
-  return k || '';
-})();
-
-// key 输入界面
-if (!DEEPSEEK_KEY) {
-  document.addEventListener('DOMContentLoaded', () => {
-    const container = document.querySelector('.mirror-container');
-    const box = document.createElement('div');
-    box.style.cssText = 'background:var(--bg-card);border:1px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:20px;text-align:left';
-    box.innerHTML = `
-      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">🔑 首次使用请输入 DeepSeek API Key（只存你本地）</div>
-      <div style="display:flex;gap:8px">
-        <input id="key-input" type="password" placeholder="sk-..." style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-deep);color:var(--text-primary);font:inherit;font-size:14px">
-        <button id="key-save" style="padding:10px 18px;border-radius:8px;background:var(--accent);color:#0a0f;border:none;font-weight:600;cursor:pointer;white-space:nowrap">保存</button>
-      </div>
-    `;
-    container.insertBefore(box, container.firstChild);
-    document.getElementById('key-save').onclick = () => {
-      const v = document.getElementById('key-input').value.trim();
-      if (!v) return;
-      localStorage.setItem('mirror_ds_key', v);
-      location.reload();
-    };
-  });
-}
 
 // ==================== 全局状态 ====================
 let cardsCache = [];
@@ -432,42 +405,19 @@ async function supabaseREST(path, query = '') {
 }
 
 async function api(method, path, body) {
-  // mirror → 直调 DeepSeek
+  // mirror → Supabase RPC（key 藏在数据库里）
   if (path === '/api/mirror') {
-    // 直接调用 DeepSeek API
-    const dsRes = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/mirror`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DEEPSEEK_KEY}` },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: `你是"认知镜"——帮人解耦思维纠缠。做三件事：1.解耦分析：找出问题中纠缠的不同层面，层层分开。保持锋利、不废话。2.一句金句≤25字，禅宗机锋风格。3.3-5个标签。只返回JSON：{"analysis":"...","quote":"...","tags":["..."]}` },
-          { role: 'user', content: body.question },
-        ],
-        temperature: 0.8, max_tokens: 1024,
-      }),
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: body.question }),
     });
-    if (!dsRes.ok) {
-      const err = await dsRes.json();
-      return { ok: false, status: dsRes.status, json: () => ({ error: err.error?.message || 'AI 调用失败' }) };
+    if (!res.ok) {
+      const err = await res.text();
+      return { ok: false, status: res.status, json: () => ({ error: err }) };
     }
-    const dsData = await dsRes.json();
-    const raw = dsData.choices?.[0]?.message?.content || '';
-    const m = raw.match(/\{[\s\S]*\}/);
-    const cd = m ? JSON.parse(m[0]) : { analysis: raw, quote: '', tags: [] };
-    const cardId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
-    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, ...cd, remaining: '?' };
-
-    // 存到 Supabase
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/cards`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify(card),
-      });
-    } catch(e) { console.error('Save failed:', e); }
-
-    return { ok: true, json: () => card, headers: new Map([['X-Mirror-CardId', cardId]]) };
+    const card = await res.json();
+    return { ok: true, json: () => card, headers: new Map([['X-Mirror-CardId', card.id]]) };
   }
   // cards → Supabase REST
   if (path.startsWith('/api/cards')) {
