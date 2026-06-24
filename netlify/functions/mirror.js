@@ -2,14 +2,14 @@
  * 认知镜 — POST /.netlify/functions/mirror（Supabase 持久化）
  */
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const DAILY_LIMIT = parseInt(process.env.DAILY_LIMIT || '3');
 
 async function supabase(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: {
-      'apikey': SUPABASE_SECRET_KEY,
-      'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json',
       ...options.headers,
     },
@@ -39,17 +39,6 @@ exports.handler = async (event) => {
     return { statusCode: 204, headers: { ...hdrs, 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   }
   if (event.httpMethod !== 'POST') {
-    // 诊断
-    if (event.httpMethod === 'GET') {
-      try {
-        const envKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('SUPA') || k.toUpperCase().includes('DEEPSEEK'));
-        const envVals = {};
-        for (const k of envKeys) envVals[k] = (process.env[k]||'').slice(0, 10) + '...';
-        return { statusCode: 200, headers: hdrs, body: JSON.stringify({ envKeys, envVals }) };
-      } catch(e) {
-        return { statusCode: 200, headers: hdrs, body: JSON.stringify({ error: e.message }) };
-      }
-    }
     return { statusCode: 405, headers: hdrs, body: JSON.stringify({ error: 'POST only' }) };
   }
 
