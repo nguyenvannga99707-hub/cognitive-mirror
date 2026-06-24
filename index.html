@@ -227,7 +227,20 @@ main {
 }
 .card-analysis {
   font-size: 14px; line-height: 1.7; margin-bottom: 14px;
-  white-space: pre-wrap;
+  white-space: pre-wrap; position: relative;
+}
+.card-analysis.collapsed {
+  max-height: 5.5em; overflow: hidden;
+}
+.card-analysis.collapsed::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2em;
+  background: linear-gradient(transparent, var(--bg-card));
+}
+.card-expand {
+  display: none; cursor: pointer; color: var(--accent);
+  font-size: 13px; margin-top: -12px; margin-bottom: 14px;
+  user-select: none;
 }
 .card-quote {
   font-size: 17px; color: var(--accent); font-weight: 500;
@@ -353,6 +366,7 @@ main {
         <div class="card-face card-front">
           <div class="card-question" id="card-question"></div>
           <div class="card-analysis" id="card-analysis"></div>
+          <div class="card-expand" id="card-expand"></div>
           <div class="card-quote" id="card-quote"></div>
           <div class="card-tags" id="card-tags"></div>
         </div>
@@ -503,12 +517,19 @@ fetchRemaining();
 
 // ==================== 镜子（打字机动画版） ====================
 function formatAnalysis(text) {
+  if (!text) return '';
   if (text.includes('▼')) return text;
-  // 识别数字列表标记（1）2）3、等）
   text = text.replace(/(\d)[）)]\s*/g, '\n$1) ');
-  // 在句号、问号、感叹号后换行
+  text = text.replace(/；/g, '；\n');
+  text = text.replace(/([。！？])\s*(但是|然而|不过|所以|因为|其实|因此|总之)/g, '$1\n$2');
   text = text.replace(/([。！？])\s*/g, '$1\n');
-  return text.trim();
+  const lines = text.split('\n').filter(l => l.trim());
+  const out = [];
+  for (const l of lines) {
+    if (out.length && out[out.length-1].length < 30) out[out.length-1] += l;
+    else out.push(l);
+  }
+  return out.join('\n').trim();
 }
 
 async function typewriter(el, text, speed = 40) {
@@ -643,19 +664,38 @@ function nextCard() {
 function showCard(card) {
   const inner = document.getElementById('card-inner');
 
-  // 先翻回去
   if (inner.classList.contains('flipped')) {
     inner.classList.remove('flipped');
   }
 
-  // 填充数据
   document.getElementById('card-question').textContent = card.question || '';
-  document.getElementById('card-analysis').textContent = formatAnalysis(card.analysis || '');
+  const analysisEl = document.getElementById('card-analysis');
+  const expandEl = document.getElementById('card-expand');
+  const text = formatAnalysis(card.analysis || '');
+  analysisEl.textContent = text;
   document.getElementById('card-quote').textContent = card.quote || '';
   const tagsEl = document.getElementById('card-tags');
   tagsEl.innerHTML = (card.tags || []).map(t => `<span class="card-tag" onclick="filterByTag('${t}')">${t}</span>`).join('');
 
-  // 翻过去
+  // 超长文本折叠
+  if (text.length > 180) {
+    analysisEl.classList.add('collapsed');
+    expandEl.style.display = 'block';
+    expandEl.textContent = '展开全文 ↓';
+    expandEl.onclick = () => {
+      if (analysisEl.classList.contains('collapsed')) {
+        analysisEl.classList.remove('collapsed');
+        expandEl.textContent = '收起 ↑';
+      } else {
+        analysisEl.classList.add('collapsed');
+        expandEl.textContent = '展开全文 ↓';
+      }
+    };
+  } else {
+    analysisEl.classList.remove('collapsed');
+    expandEl.style.display = 'none';
+  }
+
   setTimeout(() => inner.classList.add('flipped'), 150);
 }
 
