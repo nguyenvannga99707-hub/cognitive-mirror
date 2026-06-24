@@ -385,12 +385,56 @@ main {
 </main>
 
 <script>
+// ==================== Supabase 配置 ====================
+const SUPABASE_URL = 'https://huxjrjovoxwoolxmdgub.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_EaNQK_SmhiaHfA-LvPCe4w_d3rCCZEt';
+
 // ==================== 全局状态 ====================
-let API_BASE = '';  // 部署时替换为 Worker URL
 let cardsCache = [];
 let cardIndex = 0;
 let mirrorCardId = null;
-let currentTagFilter = null;
+
+// ==================== API ====================
+async function supabaseREST(path, query = '') {
+  const url = `${SUPABASE_URL}/rest/v1/${path}${query}`;
+  const res = await fetch(url, {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}`);
+  return res;
+}
+
+async function api(method, path, body) {
+  // mirror → Edge Function
+  if (path === '/api/mirror') {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/mirror`, {
+      method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return res;
+  }
+  // cards / network → Supabase REST
+  if (path === '/api/cards') {
+    const limit = 9999;
+    const res = await supabaseREST(`cards?select=*&order=timestamp.desc&limit=${limit}`);
+    const cards = await res.json();
+    // 模拟旧格式
+    return { ok: true, json: () => ({ cards, total: cards.length }) };
+  }
+  if (path === '/api/network') {
+    const res = await supabaseREST(`cards?select=*&order=timestamp.desc&limit=500`);
+    const cards = await res.json();
+    const nodes = [], links = [], tagFreq = {}, tagSet = new Set();
+    for (const c of cards) {
+      if (!c.tags?.length) continue;
+      nodes.push({ id: c.id, type: 'card', question: (c.question||'').slice(0,80), tags: c.tags, views: c.views||1 });
+      for (const t of c.tags) { tagFreq[t]=(tagFreq[t]||0)+1; tagSet.add(t); links.push({ source: c.id, target: `tag:${t}` }); }
+    }
+    for (const t of tagSet) nodes.push({ id: `tag:${t}`, type: 'tag', label: t });
+    return { ok: true, json: () => ({ nodes, links, tagFrequency: tagFreq }) };
+  }
+  throw new Error('Unknown API path');
+}
 
 // ==================== 视图切换 ====================
 function switchView(name) {
@@ -412,19 +456,6 @@ function toast(msg) {
   el.className = 'toast'; el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3000);
-}
-
-// ==================== API ====================
-async function api(method, path, body) {
-  try {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(`${API_BASE}${path}`, opts);
-    return res;
-  } catch (err) {
-    toast('网络错误，连接不上镜子服务器。');
-    throw err;
-  }
 }
 
 // ==================== 剩余次数 ====================
@@ -730,7 +761,6 @@ function renderNetwork() {
 }
 
 function filterByTag(tag) {
-  currentTagFilter = tag;
   switchView('cards');
   // 过滤卡片
   const filtered = cardsCache.filter(c => (c.tags || []).includes(tag));
