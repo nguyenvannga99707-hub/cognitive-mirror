@@ -688,8 +688,10 @@ async function sendQuestion() {
       viewLink.classList.add('show');
     }
 
-    // 刷新卡片缓存
-    cardsCache = []; loadCards();
+    // 直接塞进卡片缓存（实时同步，不等异步刷新）
+    cardsCache.unshift(data);
+    // 后台静默刷新保底
+    loadCards();
   } catch (err) {
     analysisContent.innerHTML = '<span style="color:var(--danger)">连接断了，再试一次。</span>';
   }
