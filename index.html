@@ -437,7 +437,15 @@ async function fetchRemaining() {
 }
 fetchRemaining();
 
-// ==================== 镜子 ====================
+// ==================== 镜子（打字机动画版） ====================
+async function typewriter(el, text, speed = 40) {
+  el.textContent = '';
+  for (let i = 0; i < text.length; i++) {
+    el.textContent += text[i];
+    await new Promise(r => setTimeout(r, speed));
+  }
+}
+
 async function sendQuestion() {
   const input = document.getElementById('input-question');
   const btn = document.getElementById('btn-mirror');
@@ -456,7 +464,7 @@ async function sendQuestion() {
   // 清空状态
   btn.disabled = true; btn.textContent = '思考中…';
   responseArea.classList.add('show');
-  analysisContent.innerHTML = '<span class="cursor-blink"></span>';
+  analysisContent.innerHTML = '<span class="cursor-blink" style="opacity:0.6;color:var(--text-muted);font-size:14px">……</span>';
   quoteBlock.style.display = 'none';
   viewLink.classList.remove('show');
 
@@ -477,92 +485,32 @@ async function sendQuestion() {
       return;
     }
 
-    // 读取流式响应
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let fullAnalysis = '';
-    let fullJson = '';
-    let gotAnalysis = false;
-    let quoteRevealed = false;
+    const data = await res.json();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      buffer += chunk;
-
-      // 一次处理一行 SSE
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data);
-          const content = parsed?.choices?.[0]?.delta?.content;
-          if (!content) continue;
-
-          fullJson += content;
-          // 尝试提取实时文本：在 JSON 未结束前展示 analysis 部分
-          if (!gotAnalysis) {
-            const analysisMatch = fullJson.match(/"analysis"\s*:\s*"([^"]*)/);
-            if (analysisMatch && analysisMatch[1].length > 20) {
-              gotAnalysis = true;
-              analysisContent.innerHTML = ''; // 清除光标
-            }
-          }
-          if (gotAnalysis && !quoteRevealed) {
-            // 显示实时文本，但去掉 JSON 标记
-            let display = fullJson
-              .replace(/\{"analysis"\s*:\s*"/, '')
-              .replace(/\{"analysis"\s*:\s*/, '')
-              .replace(/"quote"\s*:\s*"[^"]*/, '')
-              .replace(/"tags"\s*:.*/, '')
-              .replace(/[{"]/g, '');
-            analysisContent.textContent = display;
-          }
-
-          // 检测金句是否出现
-          if (!quoteRevealed && fullJson.includes('"quote"')) {
-            quoteRevealed = true;
-            const quoteMatch = fullJson.match(/"quote"\s*:\s*"([^"]*)"/);
-            if (quoteMatch) {
-              quoteBlock.style.display = 'block';
-              quoteText.textContent = quoteMatch[1];
-            }
-          }
-        } catch {}
-      }
+    // 更新剩余次数
+    if (data.remaining !== undefined) {
+      document.getElementById('count-remaining').textContent = data.remaining;
     }
 
-    // 流结束后，尝试解析完整 JSON
-    try {
-      const jsonMatch = fullJson.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const card = JSON.parse(jsonMatch[0]);
-        analysisContent.textContent = card.analysis;
+    // 打字机动画显示解耦分析
+    await typewriter(analysisContent, data.analysis || '收到了一些内容…');
+
+    // 延迟显示金句
+    if (data.quote) {
+      setTimeout(() => {
         quoteBlock.style.display = 'block';
-        quoteText.textContent = card.quote;
-
-        // 更新剩余次数
-        const remaining = res.headers.get('X-Mirror-Remaining');
-        if (remaining !== null) {
-          document.getElementById('count-remaining').textContent = remaining;
-        }
-
-        // 卡片链接
-        mirrorCardId = res.headers.get('X-Mirror-CardId');
-        if (mirrorCardId) viewLink.classList.add('show');
-      }
-    } catch {
-      // 降级：直接显示收集到的文本
-      analysisContent.textContent = fullJson || '拿到了一些内容，但格式不太对。';
+        quoteText.textContent = data.quote;
+      }, 400);
     }
+
+    // 卡片链接
+    if (data.id) {
+      mirrorCardId = data.id;
+      viewLink.classList.add('show');
+    }
+
+    // 刷新卡片缓存
+    cardsCache = []; loadCards();
   } catch (err) {
     analysisContent.innerHTML = '<span style="color:var(--danger)">连接断了，再试一次。</span>';
   }
