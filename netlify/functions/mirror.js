@@ -43,6 +43,16 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod !== 'POST') {
+    // 诊断模式：GET 返回环境变量状态
+    if (event.httpMethod === 'GET') {
+      const envKeys = Object.keys(process.env).filter(k => k.includes('DEEPSEEK') || k.includes('DAILY'));
+      return { statusCode: 200, headers, body: JSON.stringify({ 
+        envKeys, 
+        apiKeySet: !!process.env.DEEPSEEK_API_KEY,
+        apiKeyLen: (process.env.DEEPSEEK_API_KEY || '').length,
+        dailyLimit: process.env.DAILY_LIMIT || '未设置',
+      })};
+    }
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
   }
 
