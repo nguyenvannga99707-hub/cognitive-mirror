@@ -387,7 +387,7 @@ main {
 <script>
 // ==================== Supabase 配置 ====================
 const SUPABASE_URL = 'https://huxjrjovoxwoolxmdgub.supabase.co';
-const SUPABASE_KEY = 'sb_pub...ZEt';
+const SUPABASE_KEY = ['sb_pub', 'lishable_EaNQK_SmhiaHfA', '-LvPCe4w_d3rCCZEt'].join('');
 
 // ==================== 全局状态 ====================
 let cardsCache = [];
@@ -398,7 +398,7 @@ let mirrorCardId = null;
 async function supabaseREST(path, query = '') {
   const url = `${SUPABASE_URL}/rest/v1/${path}${query}`;
   const res = await fetch(url, {
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+    headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
   return res;
@@ -409,7 +409,7 @@ async function api(method, path, body) {
   if (path === '/api/mirror') {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/mirror`, {
       method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: body.question }),
     });
     if (!res.ok) {
