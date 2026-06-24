@@ -257,6 +257,84 @@ main {
   background: var(--accent-subtle); color: var(--accent);
 }
 
+/* ============ 稀有度特效 ============ */
+.card-face[data-rarity="N"] { border-color: var(--border); }
+.card-face[data-rarity="R"] {
+  border-color: #6a8cbe;
+  box-shadow: 0 0 25px rgba(106,140,190,0.25);
+  animation: glowR 2.5s ease-in-out infinite alternate;
+}
+.card-face[data-rarity="SR"] {
+  border-color: #d4a853;
+  box-shadow: 0 0 30px rgba(212,168,83,0.3), 0 0 60px rgba(212,168,83,0.1);
+  animation: glowSR 1.8s ease-in-out infinite alternate;
+}
+.card-face[data-rarity="SSR"] {
+  border: 2px solid transparent;
+  background: var(--bg-card);
+  box-shadow: 0 0 50px rgba(255,100,200,0.35), 0 0 100px rgba(100,200,255,0.2), 0 0 150px rgba(255,200,100,0.1);
+  animation: glowSSR 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes glowR {
+  from { box-shadow: 0 0 15px rgba(106,140,190,0.15); }
+  to { box-shadow: 0 0 35px rgba(106,140,190,0.4); }
+}
+@keyframes glowSR {
+  from { box-shadow: 0 0 20px rgba(212,168,83,0.2), 0 0 40px rgba(212,168,83,0.05); }
+  to { box-shadow: 0 0 45px rgba(212,168,83,0.5), 0 0 80px rgba(212,168,83,0.2); }
+}
+@keyframes glowSSR {
+  0%   { box-shadow: 0 0 40px rgba(255,100,200,0.35), 0 0 80px rgba(100,200,255,0.2); border-color: #ff64c8; }
+  33%  { box-shadow: 0 0 50px rgba(100,255,200,0.4), 0 0 90px rgba(255,200,100,0.25); border-color: #64ffc8; }
+  66%  { box-shadow: 0 0 45px rgba(200,100,255,0.35), 0 0 85px rgba(255,100,100,0.2); border-color: #c864ff; }
+  100% { box-shadow: 0 0 40px rgba(255,100,200,0.35), 0 0 80px rgba(100,200,255,0.2); border-color: #ff64c8; }
+}
+
+.rarity-badge {
+  position: absolute; top: 12px; right: 14px; z-index: 5;
+  padding: 2px 9px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+}
+.rarity-N  { background: #2a2a2a; color: #777; }
+.rarity-R  { background: #1e2d45; color: #6a8cbe; box-shadow: 0 0 8px rgba(106,140,190,0.2); }
+.rarity-SR { background: #2e2010; color: #d4a853; box-shadow: 0 0 12px rgba(212,168,83,0.25); }
+.rarity-SSR {
+  background: linear-gradient(135deg, #ff64c8, #c864ff, #64ffc8);
+  background-size: 200% 200%;
+  color: #fff;
+  animation: rainbowBadge 2s linear infinite;
+  box-shadow: 0 0 14px rgba(255,100,200,0.4);
+}
+@keyframes rainbowBadge {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 屏幕震动（SSR） */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px) rotateY(182deg); }
+  40% { transform: translateX(6px) rotateY(178deg); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.card-inner.ssr-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* SSR 粒子 */
+.ssr-particle {
+  position: absolute; pointer-events: none; z-index: 20;
+  width: 6px; height: 6px; border-radius: 50%;
+  animation: particleBurst 1s ease-out forwards;
+}
+@keyframes particleBurst {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0); }
+}
+
 .card-nav {
   display: flex; justify-content: center; gap: 12px; margin-top: 20px;
 }
@@ -367,6 +445,7 @@ main {
           <div class="card-back-icon">🪞</div>
         </div>
         <div class="card-face card-front">
+          <div class="rarity-badge" id="rarity-badge">N</div>
           <div class="card-question" id="card-question"></div>
           <div class="card-analysis" id="card-analysis"></div>
           <div class="card-expand" id="card-expand"></div>
@@ -446,8 +525,11 @@ async function api(method, path, body) {
     const raw = dsData.choices?.[0]?.message?.content || '';
     const m = raw.match(/\{[\s\S]*\}/);
     const cd = m ? JSON.parse(m[0]) : { analysis: raw, quote: '', tags: [] };
+    // 稀有度判定：金句 + 分析深度
+    const alen = (cd.analysis || '').length;
+    const rarity = alen > 250 && cd.quote ? 'SSR' : alen > 150 ? 'SR' : alen > 80 ? 'R' : 'N';
     const cardId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
-    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, ...cd, remaining: '∞' };
+    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, rarity, ...cd, remaining: '∞' };
     await fetch(`${SUPABASE_URL}/rest/v1/cards`, {
       method: 'POST',
       headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -664,12 +746,20 @@ function nextCard() {
   showCard(cardsCache[cardIndex]);
 }
 
-function showCard(card) {
+function showCard(card, isDraw = false) {
   const inner = document.getElementById('card-inner');
+  const front = inner.querySelector('.card-front');
+  const badge = document.getElementById('rarity-badge');
 
   if (inner.classList.contains('flipped')) {
     inner.classList.remove('flipped');
   }
+  inner.classList.remove('ssr-shake');
+
+  const rarity = card.rarity || 'N';
+  front.setAttribute('data-rarity', rarity);
+  badge.className = 'rarity-badge rarity-' + rarity;
+  badge.textContent = ['N','R','SR','SSR'].includes(rarity) ? rarity : 'N';
 
   document.getElementById('card-question').textContent = card.question || '';
   const analysisEl = document.getElementById('card-analysis');
@@ -699,7 +789,36 @@ function showCard(card) {
     expandEl.style.display = 'none';
   }
 
-  setTimeout(() => inner.classList.add('flipped'), 150);
+  // 抽卡特效
+  const flipDelay = rarity === 'SSR' ? 600 : rarity === 'SR' ? 350 : 150;
+  setTimeout(() => {
+    inner.classList.add('flipped');
+    if (rarity === 'SSR') {
+      spawnParticles(inner);
+      setTimeout(() => inner.classList.add('ssr-shake'), 100);
+      setTimeout(() => inner.classList.remove('ssr-shake'), 700);
+    }
+  }, flipDelay);
+}
+
+// SSR 粒子爆发
+function spawnParticles(container) {
+  const colors = ['#ff64c8','#64ffc8','#c864ff','#ffc864','#64c8ff'];
+  const rect = container.getBoundingClientRect();
+  for (let i = 0; i < 24; i++) {
+    const p = document.createElement('div');
+    p.className = 'ssr-particle';
+    const angle = Math.random() * 2 * Math.PI;
+    const dist = 40 + Math.random() * 80;
+    p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+    p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.left = (rect.width / 2 + (Math.random() - 0.5) * 40) + 'px';
+    p.style.top = (rect.height / 2 + (Math.random() - 0.5) * 40) + 'px';
+    p.style.animationDuration = (0.6 + Math.random() * 0.8) + 's';
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 1500);
+  }
 }
 
 // ==================== 知识网络 ====================
