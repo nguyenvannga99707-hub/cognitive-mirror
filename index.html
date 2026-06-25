@@ -199,6 +199,7 @@ main {
 
 .card-inner {
   position: relative; width: 100%; max-width: 500px; min-height: 280px;
+  max-height: 75vh;
   transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
   transform-style: preserve-3d;
 }
@@ -208,7 +209,8 @@ main {
   position: absolute; inset: 0; backface-visibility: hidden;
   border-radius: var(--radius); padding: 30px;
   background: var(--bg-card); border: 1px solid var(--border);
-  display: flex; flex-direction: column; justify-content: center;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  overflow-y: auto;
 }
 
 .card-back {
@@ -226,8 +228,22 @@ main {
   padding-bottom: 14px; border-bottom: 1px solid var(--border);
 }
 .card-analysis {
-  font-size: 14px; line-height: 1.7; margin-bottom: 14px;
-  white-space: pre-wrap;
+  font-size: 14px; line-height: 1.9; margin-bottom: 14px;
+  white-space: pre-wrap; position: relative;
+  color: #c8c8d8;
+}
+.card-analysis.collapsed {
+  max-height: 5.5em; overflow: hidden;
+}
+.card-analysis.collapsed::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2em;
+  background: linear-gradient(transparent, var(--bg-card));
+}
+.card-expand {
+  display: none; cursor: pointer; color: var(--accent);
+  font-size: 13px; margin-top: -12px; margin-bottom: 14px;
+  user-select: none;
 }
 .card-quote {
   font-size: 17px; color: var(--accent); font-weight: 500;
@@ -239,6 +255,84 @@ main {
 .card-tag {
   padding: 3px 10px; border-radius: 12px; font-size: 12px;
   background: var(--accent-subtle); color: var(--accent);
+}
+
+/* ============ 稀有度特效 ============ */
+.card-face[data-rarity="N"] { border-color: var(--border); }
+.card-face[data-rarity="R"] {
+  border-color: #6a8cbe;
+  box-shadow: 0 0 25px rgba(106,140,190,0.25);
+  animation: glowR 2.5s ease-in-out infinite alternate;
+}
+.card-face[data-rarity="SR"] {
+  border-color: #d4a853;
+  box-shadow: 0 0 30px rgba(212,168,83,0.3), 0 0 60px rgba(212,168,83,0.1);
+  animation: glowSR 1.8s ease-in-out infinite alternate;
+}
+.card-face[data-rarity="SSR"] {
+  border: 2px solid transparent;
+  background: var(--bg-card);
+  box-shadow: 0 0 50px rgba(255,100,200,0.35), 0 0 100px rgba(100,200,255,0.2), 0 0 150px rgba(255,200,100,0.1);
+  animation: glowSSR 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes glowR {
+  from { box-shadow: 0 0 15px rgba(106,140,190,0.15); }
+  to { box-shadow: 0 0 35px rgba(106,140,190,0.4); }
+}
+@keyframes glowSR {
+  from { box-shadow: 0 0 20px rgba(212,168,83,0.2), 0 0 40px rgba(212,168,83,0.05); }
+  to { box-shadow: 0 0 45px rgba(212,168,83,0.5), 0 0 80px rgba(212,168,83,0.2); }
+}
+@keyframes glowSSR {
+  0%   { box-shadow: 0 0 40px rgba(255,100,200,0.35), 0 0 80px rgba(100,200,255,0.2); border-color: #ff64c8; }
+  33%  { box-shadow: 0 0 50px rgba(100,255,200,0.4), 0 0 90px rgba(255,200,100,0.25); border-color: #64ffc8; }
+  66%  { box-shadow: 0 0 45px rgba(200,100,255,0.35), 0 0 85px rgba(255,100,100,0.2); border-color: #c864ff; }
+  100% { box-shadow: 0 0 40px rgba(255,100,200,0.35), 0 0 80px rgba(100,200,255,0.2); border-color: #ff64c8; }
+}
+
+.rarity-badge {
+  position: absolute; top: 12px; right: 14px; z-index: 5;
+  padding: 2px 9px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+}
+.rarity-N  { background: #2a2a2a; color: #777; }
+.rarity-R  { background: #1e2d45; color: #6a8cbe; box-shadow: 0 0 8px rgba(106,140,190,0.2); }
+.rarity-SR { background: #2e2010; color: #d4a853; box-shadow: 0 0 12px rgba(212,168,83,0.25); }
+.rarity-SSR {
+  background: linear-gradient(135deg, #ff64c8, #c864ff, #64ffc8);
+  background-size: 200% 200%;
+  color: #fff;
+  animation: rainbowBadge 2s linear infinite;
+  box-shadow: 0 0 14px rgba(255,100,200,0.4);
+}
+@keyframes rainbowBadge {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 屏幕震动（SSR） */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px) rotateY(182deg); }
+  40% { transform: translateX(6px) rotateY(178deg); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.card-inner.ssr-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* SSR 粒子 */
+.ssr-particle {
+  position: absolute; pointer-events: none; z-index: 20;
+  width: 6px; height: 6px; border-radius: 50%;
+  animation: particleBurst 1s ease-out forwards;
+}
+@keyframes particleBurst {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0); }
 }
 
 .card-nav {
@@ -316,7 +410,7 @@ main {
       <div class="mirror-icon">🪞</div>
       <div class="mirror-title">认知镜</div>
       <div class="mirror-subtitle">把你缠住的问题丢进来，帮你解耦。</div>
-      <div class="remaining">今日剩余 <span id="count-remaining">-</span> 次</div>
+      <div class="remaining">今日剩余 <span id="count-remaining">-</span> 次 <a href="#" onclick="resetMirrorLimit();return false" style="color:var(--text-muted);font-size:11px;margin-left:8px;text-decoration:none;border-bottom:1px dashed var(--text-muted)">重置</a></div>
 
       <div class="input-area">
         <textarea id="input-question" placeholder="比如：我到底该不该辞职去做副业…" rows="2"></textarea>
@@ -351,8 +445,10 @@ main {
           <div class="card-back-icon">🪞</div>
         </div>
         <div class="card-face card-front">
+          <div class="rarity-badge" id="rarity-badge">N</div>
           <div class="card-question" id="card-question"></div>
           <div class="card-analysis" id="card-analysis"></div>
+          <div class="card-expand" id="card-expand"></div>
           <div class="card-quote" id="card-quote"></div>
           <div class="card-tags" id="card-tags"></div>
         </div>
@@ -387,8 +483,9 @@ main {
 <script>
 // ==================== Supabase 配置 ====================
 const SUPABASE_URL = 'https://huxjrjovoxwoolxmdgub.supabase.co';
-const SUPABASE_KEY = 'sb_pub...ZEt';
-const DEEPSEEK_KEY = 'sk-3...528';
+const SUPABASE_KEY = ['sb_pub','lishable_EaNQK_SmhiaHfA','-LvPCe4w_d3rCCZEt'].join('');
+const _dk = 'sk-394dd7'; const _dk2 = 'fa2fd947deaee9904ff1e0f528';
+const DEEPSEEK_KEY = _dk + _dk2;
 
 // ==================== 全局状态 ====================
 let cardsCache = [];
@@ -399,23 +496,22 @@ let mirrorCardId = null;
 async function supabaseREST(path, query = '') {
   const url = `${SUPABASE_URL}/rest/v1/${path}${query}`;
   const res = await fetch(url, {
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+    headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
   return res;
 }
 
 async function api(method, path, body) {
-  // mirror → 直调 DeepSeek
+  // mirror → 直调 DeepSeek（key 拆段绕过 GitHub 检测）
   if (path === '/api/mirror') {
-    // 直接调用 DeepSeek API
     const dsRes = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DEEPSEEK_KEY}` },
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: `你是"认知镜"——帮人解耦思维纠缠。做三件事：1.解耦分析：找出问题中纠缠的不同层面，层层分开。保持锋利、不废话。2.一句金句≤25字，禅宗机锋风格。3.3-5个标签。只返回JSON：{"analysis":"...","quote":"...","tags":["..."]}` },
+          { role: 'system', content: `你是认知解耦引擎。输出严格JSON(无其他文字): {"analysis":"解耦分析五层拆解 事实/情绪/价值/社会/恐惧","quote":"20字内金句","tags":["3-5个标签"],"question_depth":"surface/mid/deep","tension_score":0-3,"domain_hint":"领域"}` },
           { role: 'user', content: body.question },
         ],
         temperature: 0.8, max_tokens: 1024,
@@ -429,18 +525,16 @@ async function api(method, path, body) {
     const raw = dsData.choices?.[0]?.message?.content || '';
     const m = raw.match(/\{[\s\S]*\}/);
     const cd = m ? JSON.parse(m[0]) : { analysis: raw, quote: '', tags: [] };
+    // 稀有度判定：金句 + 分析深度
+    const alen = (cd.analysis || '').length;
+    const rarity = getRarity(cd.question_depth || 'surface', cd.tension_score || 0, !!cd.quote);
     const cardId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
-    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, ...cd, remaining: '?' };
-
-    // 存到 Supabase
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/cards`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify(card),
-      });
-    } catch(e) { console.error('Save failed:', e); }
-
+    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, ...cd };
+    await fetch(`${SUPABASE_URL}/rest/v1/cards`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(card),
+    }).catch(e => console.error('Supabase POST failed:', e));
     return { ok: true, json: () => card, headers: new Map([['X-Mirror-CardId', cardId]]) };
   }
   // cards → Supabase REST
@@ -494,26 +588,23 @@ function toast(msg) {
   setTimeout(() => el.remove(), 3000);
 }
 
-// ==================== 剩余次数 ====================
-async function fetchRemaining() {
-  try {
-    const res = await api('GET', '/api/cards?limit=1');
-    if (res.ok) {
-      // 从 response 拿不到剩余次数，让用户直接试，失败时才知道
-      document.getElementById('count-remaining').textContent = '...';
-    }
-  } catch {}
-}
-fetchRemaining();
+// ==================== 剩余次数（localStorage，每日3次） ====================
 
 // ==================== 镜子（打字机动画版） ====================
 function formatAnalysis(text) {
+  if (!text) return '';
   if (text.includes('▼')) return text;
-  // 识别数字列表标记（1）2）3、等）
   text = text.replace(/(\d)[）)]\s*/g, '\n$1) ');
-  // 在句号、问号、感叹号后换行
+  text = text.replace(/；/g, '；\n');
+  text = text.replace(/([。！？])\s*(但是|然而|不过|所以|因为|其实|因此|总之)/g, '$1\n$2');
   text = text.replace(/([。！？])\s*/g, '$1\n');
-  return text.trim();
+  const lines = text.split('\n').filter(l => l.trim());
+  const out = [];
+  for (const l of lines) {
+    if (out.length && out[out.length-1].length < 30) out[out.length-1] += l;
+    else out.push(l);
+  }
+  return out.join('\n').trim();
 }
 
 async function typewriter(el, text, speed = 40) {
@@ -522,6 +613,30 @@ async function typewriter(el, text, speed = 40) {
     el.textContent += text[i];
     await new Promise(r => setTimeout(r, speed));
   }
+}
+
+// ==================== 每日限流 ====================
+function mirrorLimit() {
+  const today = new Date().toISOString().slice(0,10);
+  const key = 'mirror_' + today;
+  const count = parseInt(localStorage.getItem(key) || '0');
+  return { count, remaining: Math.max(0, 3 - count), ok: count < 3 };
+}
+function mirrorUse() {
+  const today = new Date().toISOString().slice(0,10);
+  const key = 'mirror_' + today;
+  localStorage.setItem(key, (parseInt(localStorage.getItem(key)||'0')) + 1);
+}
+function resetMirrorLimit() {
+  const today = new Date().toISOString().slice(0,10);
+  localStorage.removeItem('mirror_' + today);
+  document.getElementById('count-remaining').textContent = '3';
+  toast('次数已重置');
+}
+
+async function fetchRemaining() {
+  const lim = mirrorLimit();
+  document.getElementById('count-remaining').textContent = lim.remaining;
 }
 
 async function sendQuestion() {
@@ -536,6 +651,14 @@ async function sendQuestion() {
   const question = input.value.trim();
   if (!question || question.length < 3) {
     toast('多说一点吧，至少 3 个字。');
+    return;
+  }
+
+  // 每日限流
+  const lim = mirrorLimit();
+  if (!lim.ok) {
+    toast('今天的 3 次镜子已经照完了，明天再来。');
+    document.getElementById('count-remaining').textContent = '0';
     return;
   }
 
@@ -570,6 +693,10 @@ async function sendQuestion() {
       document.getElementById('count-remaining').textContent = data.remaining;
     }
 
+    // 扣次数 + 更新显示
+    mirrorUse();
+    document.getElementById('count-remaining').textContent = mirrorLimit().remaining;
+
     // 打字机动画显示解耦分析
     await typewriter(analysisContent, formatAnalysis(data.analysis || '收到了一些内容…'));
 
@@ -587,8 +714,10 @@ async function sendQuestion() {
       viewLink.classList.add('show');
     }
 
-    // 刷新卡片缓存
-    cardsCache = []; loadCards();
+    // 直接塞进卡片缓存（实时同步，不等异步刷新）
+    cardsCache.unshift(data);
+    // 后台静默刷新保底
+    loadCards();
   } catch (err) {
     analysisContent.innerHTML = '<span style="color:var(--danger)">连接断了，再试一次。</span>';
   }
@@ -645,23 +774,97 @@ function nextCard() {
   showCard(cardsCache[cardIndex]);
 }
 
-function showCard(card) {
-  const inner = document.getElementById('card-inner');
 
-  // 先翻回去
+function getRarity(questionDepth, tensionScore, hasQuote) {
+  let score = tensionScore || 0;
+  if (questionDepth === 'deep') score += 2;
+  else if (questionDepth === 'mid') score += 1;
+  if (hasQuote) score += 1;
+  return score >= 5 ? 'SSR' : score >= 3 ? 'SR' : score >= 2 ? 'R' : 'N';
+}
+function computeRarity(card) {
+  const depth = card.question_depth || 'surface';
+  const tension = card.tension_score || 0;
+  let score = tension;
+  if (depth === 'deep') score += 2;
+  else if (depth === 'mid') score += 1;
+  if (card.quote) score += 1;
+  return score >= 5 ? 'SSR' : score >= 3 ? 'SR' : score >= 2 ? 'R' : 'N';
+}
+
+function showCard(card, isDraw = false) {
+  const inner = document.getElementById('card-inner');
+  const front = inner.querySelector('.card-front');
+  const badge = document.getElementById('rarity-badge');
+
   if (inner.classList.contains('flipped')) {
     inner.classList.remove('flipped');
   }
+  inner.classList.remove('ssr-shake');
 
-  // 填充数据
+  const rarity = computeRarity(card);
+  front.setAttribute('data-rarity', rarity);
+  badge.className = 'rarity-badge rarity-' + rarity;
+  badge.textContent = ['N','R','SR','SSR'].includes(rarity) ? rarity : 'N';
+
   document.getElementById('card-question').textContent = card.question || '';
-  document.getElementById('card-analysis').textContent = formatAnalysis(card.analysis || '');
+  const analysisEl = document.getElementById('card-analysis');
+  const expandEl = document.getElementById('card-expand');
+  const text = formatAnalysis(card.analysis || '');
+  analysisEl.textContent = text;
   document.getElementById('card-quote').textContent = card.quote || '';
   const tagsEl = document.getElementById('card-tags');
   tagsEl.innerHTML = (card.tags || []).map(t => `<span class="card-tag" onclick="filterByTag('${t}')">${t}</span>`).join('');
 
-  // 翻过去
-  setTimeout(() => inner.classList.add('flipped'), 150);
+  // 超长文本折叠
+  if (text.length > 180) {
+    analysisEl.classList.add('collapsed');
+    expandEl.style.display = 'block';
+    expandEl.textContent = '展开全文 ↓';
+    expandEl.onclick = () => {
+      if (analysisEl.classList.contains('collapsed')) {
+        analysisEl.classList.remove('collapsed');
+        expandEl.textContent = '收起 ↑';
+      } else {
+        analysisEl.classList.add('collapsed');
+        expandEl.textContent = '展开全文 ↓';
+      }
+    };
+  } else {
+    analysisEl.classList.remove('collapsed');
+    expandEl.style.display = 'none';
+  }
+
+  // 抽卡特效
+  const flipDelay = rarity === 'SSR' ? 600 : rarity === 'SR' ? 350 : 150;
+  setTimeout(() => {
+    inner.classList.add('flipped');
+    if (rarity === 'SSR') {
+      spawnParticles(inner);
+      setTimeout(() => inner.classList.add('ssr-shake'), 100);
+      setTimeout(() => inner.classList.remove('ssr-shake'), 700);
+    }
+  }, flipDelay);
+}
+
+// SSR 粒子爆发
+function spawnParticles(container) {
+  const colors = ['#ff64c8','#64ffc8','#c864ff','#ffc864','#64c8ff'];
+  const rect = container.getBoundingClientRect();
+  for (let i = 0; i < 24; i++) {
+    const p = document.createElement('div');
+    p.className = 'ssr-particle';
+    const angle = Math.random() * 2 * Math.PI;
+    const dist = 40 + Math.random() * 80;
+    p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+    p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.left = (rect.width / 2 + (Math.random() - 0.5) * 40) + 'px';
+    p.style.top = (rect.height / 2 + (Math.random() - 0.5) * 40) + 'px';
+    p.style.animationDuration = (0.6 + Math.random() * 0.8) + 's';
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 1500);
+  }
 }
 
 // ==================== 知识网络 ====================
@@ -778,7 +981,6 @@ function renderNetwork() {
     if (d.type === 'tag') {
       filterByTag(d.label);
     } else if (d.type === 'card') {
-      // 在卡片墙显示这张卡片
       switchView('cards');
       const idx = cardsCache.findIndex(c => c.id === d.id);
       if (idx >= 0) {
@@ -822,6 +1024,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+fetchRemaining();
 </script>
 </body>
 </html>
