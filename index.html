@@ -463,7 +463,8 @@ a { color: var(--accent); text-decoration: none; }
 <!-- API Key Bar -->
 <div class="api-key-bar" id="api-key-bar">
   <span>🔑</span>
-  <input type="password" id="api-key-input" placeholder="输入DeepSeek API Key" />
+  <input type="password" id="api-key-input" placeholder="App Key" style="width:140px" />
+  <input type="password" id="api-secret-input" placeholder="Secret Key" style="width:140px" />
   <button class="btn-small" onclick="saveApiKey()">保存</button>
   <span class="api-status" id="api-status"></span>
 </div>
@@ -620,18 +621,26 @@ let allCards = JSON.parse(localStorage.getItem('cm_cards') || '[]');
 // ============================================================
 //  API
 // ============================================================
-function getApiKey() { return localStorage.getItem('deepseek_api_key') || ''; }
+function getApiKey() {
+  const appKey = localStorage.getItem('deepseek_app_key') || '';
+  const secretKey = localStorage.getItem('deepseek_secret_key') || '';
+  return appKey && secretKey ? `${appKey}.${secretKey}` : '';
+}
 function saveApiKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  if (!key) return;
-  localStorage.setItem('deepseek_api_key', key);
+  const appKey = document.getElementById('api-key-input').value.trim();
+  const secretKey = document.getElementById('api-secret-input').value.trim();
+  if (!appKey || !secretKey) return;
+  localStorage.setItem('deepseek_app_key', appKey);
+  localStorage.setItem('deepseek_secret_key', secretKey);
   document.getElementById('api-status').textContent = '✓';
   document.getElementById('api-status').className = 'api-status ok';
 }
 function loadApiKey() {
-  const key = getApiKey();
-  if (key) {
-    document.getElementById('api-key-input').value = key;
+  const appKey = localStorage.getItem('deepseek_app_key');
+  const secretKey = localStorage.getItem('deepseek_secret_key');
+  if (appKey && secretKey) {
+    document.getElementById('api-key-input').value = appKey;
+    document.getElementById('api-secret-input').value = secretKey;
     document.getElementById('api-status').textContent = '✓';
     document.getElementById('api-status').className = 'api-status ok';
   }
