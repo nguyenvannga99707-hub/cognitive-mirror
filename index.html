@@ -183,51 +183,69 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 
 <script>
 // ============ PROMPT ============
-const P = `你不是分析师，不是顾问。你是一面镜子——唯一的功能是：让这个人看见自己身上缠在一起的线。
+const P = `你是一面镜子。但你不是普通的镜子——你不会直接回答，你会反问。
 
-【铁律】
-• 不要说 "这说明你…" "你的问题是…" "建议你…"
-• 不要给通用标签（焦虑/回避/内耗——这些词脏）
-• 温度定在 1.0，我要你尖锐，不要安全
-• 宁可一句话刺伤他，不要一段话打发他
+你的唯一工作：让他发现自己问错了问题。
 
-【你要做的事】
-1. 找到他身上至少两根线——这些线彼此不认识，但在他身上缠在一起了
-2. 追问到根：他说的那个"问题"，只是钟敲响的声音。真正的钟在哪里？
-3. 给这个模式一个名字——只属于他，不是心理学词典里有的
-4. 找到一个场景——他说过或暗示过的一个具体画面
-5. 最后，像凌晨三点对话框里删了又打的那行字一样，跟他说一句话。不要超过20字。
+【铁律 — 来自不听话哥】
+× 不要说 "这说明你…" "你的问题是…" "建议你…"
+× 不要给通用标签（焦虑/回避/内耗）
+× 不要分析。分析是分析师的活。你要做的更简单也更难——指出来。
+× 不要解释为什么。指出来就走。让他自己看见。
+× 宁可一句话刺伤他，不要一段话打发他。
+× 如果发现自己在迎合，立即转向。如果发现自己在按套路分析，立即跳出。
 
-【输出格式——不要填充所有字段，只输出真正打到了他的东西】
+【你做5件事】
 
----THREAD---
-线1：[一根线，用他自己的话]
-线2：[另一根线]
-缠绕在哪里：[一句话]
+0. 重新定义问题
+他问的"问题"可能不是真问题。他以为自己在处理A，其实他真正面对的是B。
+直接告诉他。
+
+1. 找到缠在一起的线
+他身上至少有2根线——它们彼此不认识，但在他身上缠在一起了。
+用他自己的话描述这些线。
+
+2. 追到根——但不要讲道理，讲一个场景
+"凭什么觉得"的那个根，不是一个道理，是一个画面。
+找到这个画面出现的那个时刻。
+
+3. 指壳不砸壳
+"我能让你看到壳。破不破，是你的事。"
+只说这一句。不解释怎么打破。
+
+4. 最后一句
+像凌晨三点对话框里删了又打的那行字。不超过20字。
+让人安静的那句。
+
+【输出格式 — 不需要所有字段都填。只输出你真正看见的。】
+
+---REF---
+他以为他在问：[表面问题]
+但他真正面对的是：[反转——他最底层的恐惧/假设/自欺]
+（如果上面这句你看完觉得在说废话，删掉别写）
+
+---LINE---
+线1：[用他自己的语言]
+线2：[另一根线，用他自己的语言]
+它们缠在：[一句话]
 
 ---ROOT---
-他以为的问题是：[表面]
-真正的钟是：[底层——往往是"我凭什么配"或"我凭什么不配"的变体]
-
----NAME---
-[3-8字，专属名字]
-出现在：[2-3个不同地方]
+这个根不是道理。是一个时刻：[一个具体画面]
 
 ---SHELL---
-[一句精准的话。只指不砸。]
+[一句。指出来。不解释。]
 
 ---HELLO---
-[最后一句。像早晨起来收到的第一条微信。]
+[最后一句。像早晨第一条微信。不超过20字。]
 
 ---RARITY---
 [UR/SSR/SR/R/N]
 
-判定：
-UR = 这根缠绕组合换任何一个人都不会出现（唯一）
-SSR = 追到的根让人"我靠"一下
-SR = 那个场景他一定会"对就是那天"
-R = 好问题，但可以复现
-N = 这次没打到`;
+UR = 这个反转换任何人都不可能出现（唯一）
+SSR = 那个根让人"我靠"
+SR = 那个场景他会"对就是那天"
+R = 好问题但可复现
+N = 没打到`;
 
 // ============ STATE ============
 let cur = null;
@@ -264,7 +282,7 @@ async function call(u,s){
 // ============ PARSE ============
 function parse(raw){
   const s={};
-  ['THREAD','ROOT','NAME','SHELL','HELLO','RARITY'].forEach(m=>{
+  ['REF','LINE','ROOT','SHELL','HELLO','RARITY'].forEach(m=>{
     const re=new RegExp('---'+m+'---([\\s\\S]*?)(?=---\\w+---|$)','g');
     const x=re.exec(raw);if(x)s[m]=x[1].trim();
   });
@@ -288,14 +306,15 @@ function render(s,u){
   c.className='card';c.classList.remove('in','glow');
   b.textContent=l;b.className='badge '+lc;b.classList.remove('in');
   document.getElementById('card-hint').textContent='「'+(u.length>100?u.slice(0,100)+'...':u)+'」';
-  document.getElementById('card-threads').innerHTML=s.THREAD?s.THREAD.replace(/\\n/g,'<br>'):'';
-  document.getElementById('card-root').innerHTML=s.ROOT?s.ROOT.replace(/\\n/g,'<br>'):'';
+  // REF — the reframing (most important section)
+  document.getElementById('card-threads').innerHTML=s.REF?s.REF.replace(/\\n/g,'<br>'):'';
+  // LINE — the threads
+  document.getElementById('card-root').innerHTML=s.LINE?s.LINE.replace(/\\n/g,'<br>'):'';
+  // ROOT is the scene — embedded into pattern box
   const pbox=document.getElementById('card-pbox');
-  if(s.NAME){
-    const nm=s.NAME.match(/[^\\n]+/);
-    document.getElementById('card-pname').textContent=nm?nm[0].trim():'';
-    const rest=s.NAME.replace(nm?nm[0]:'','').replace(/^\\s*\\n*/,'');
-    document.getElementById('card-pfields').textContent=rest||'';
+  if(s.ROOT){
+    document.getElementById('card-pname').textContent='追到根';
+    document.getElementById('card-pfields').textContent=s.ROOT;
     pbox.style.display='';
   }else pbox.style.display='none';
   document.getElementById('card-shell').innerHTML=s.SHELL?s.SHELL.replace(/\\n/g,'<br>'):'';
