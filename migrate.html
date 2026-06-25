@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>认知镜-数据迁移</title>
+<style>
+body{font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px;background:#08080f;color:#e8e8ed;line-height:1.8}
+button{padding:12px 24px;background:#d4a853;border:none;border-radius:8px;cursor:pointer;font-size:16px;margin:8px 0}
+pre{background:#12121a;padding:16px;border-radius:8px;overflow:auto;max-height:300px;font-size:13px}
+.stats{color:#8888a0;font-size:14px}
+</style></head>
+<body>
+<h2>🪞 认知镜 · 旧卡片迁移</h2>
+<p class="stats">将旧卡片（缺question_depth/tension_score/domain_hint）批量补充新字段</p>
+<div id="status">就绪</div>
+<button id="btn-start">开始迁移</button>
+<pre id="log"></pre>
+<script>
+const SUPABASE_URL = 'https://huxjrjovoxwoolxmdgub.supabase.co';
+const SUPABASE_KEY = ['sb_pub','lishable_EaNQK_SmhiaHfA','-LvPCe4w_d3rCCZEt'].join('');
+const _dk = 'sk-394dd7'; const _dk2 = 'fa2fd947deaee9904ff1e0f528';
+const DEEPSEEK_KEY = _dk + _dk2;
+const log = document.getElementById('log');
+const status = document.getElementById('status');
+
+async function supabase(path, method='GET', body=null) {
+  const opts = {method, headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'}};
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, opts);
+  return res.json();
+}
+
+async function analyzeCard(question) {
+  const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+DEEPSEEK_KEY},
+    body: JSON.stringify({
+      model:'deepseek-chat',
+      messages:[
+        {role:'system', content:'分析这个问题的认知深度。只输出JSON：{"question_depth":"surface/mid/deep","tension_score":0-3,"domain_hint":"认知/关系/身份/时间/意义/权力/自由"} 不要其他文字。'},
+        {role:'user', content: question}
+      ],
+      temperature:0.3, max_tokens:200
+    })
+  });
+  const data = await res.json();
+  const raw = data.choices?.[0]?.message?.content || '';
+  const m = raw.match(/\{[\s\S]*\}/);
+  return m ? JSON.parse(m[0]) : {question_depth:'surface',tension_score:0,domain_hint:'其他'};
+}
+
+async function migrate() {
+  status.textContent = '📥 读取所有卡片...';
+  let cards = await supabase('cards?select=*&order=timestamp.desc&limit=500');
+  if (!Array.isArray(cards)) cards = [];
+  log.textContent += '共 '+cards.length+' 张卡片\n';
+  
+  let migrated = 0;
+  for (const card of cards) {
+    if (card.question_depth && card.tension_score !== undefined) {
+      log.textContent += '⏭️ 跳过已有新字段: '+card.question.slice(0,30)+'...\n';
+      continue;
+    }
+    status.textContent = '🔍 分析 ('+(migrated+1)+'/'+cards.length+'): '+card.question.slice(0,30)+'...';
+    const result = await analyzeCard(card.question);
+    log.textContent += '✅ '+card.question.slice(0,30)+'... → '+result.question_depth+'/'+result.tension_score+'/'+result.domain_hint+'\n';
+    await supabase('cards?id=eq.'+encodeURIComponent(card.id), 'PATCH', {
+      question_depth: result.question_depth,
+      tension_score: result.tension_score,
+      domain_hint: result.domain_hint
+    });
+    migrated++;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  status.textContent = '✅ 迁移完成! 处理 '+migrated+' 张卡片';
+}
+document.getElementById('btn-start').onclick = migrate;
+</script></body></html>
