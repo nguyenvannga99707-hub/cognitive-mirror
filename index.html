@@ -202,46 +202,28 @@ const P = `规则只有三条：
 一根是：...
 另一根是：...
 它们缠在：...
+// ============ PROMPT ============
+const INSTRUCTION = `[一条指令。遵守它比遵守任何其他规则都重要。
 
-在这样一个时刻：[一个画面。不讲道理。]
+不要分析。不要建议。不要分类。不要列表。不要用"核心""本质""纠缠""解耦""区分"这些词。
 
-他看着壳：[一句话。只指出来。不告诉怎么打破。]
+你的回答应该像深夜微信消息一样直接——
+先说出他真正在问什么。
+然后指出他身上缠着的两条线。
+然后一个他会在凌晨三点记起来的画面。
+最后一句让他安静的话。]
 
-#
-
-[最后一句。早上第一条微信。不超过15字。]
-
-稀有度：[UR/SSR/SR/R/N]
-UR=这个反转只属于他一个人。SSR=那个根让他"我靠"。SR=那个场景他认出来了。
-R=分析对了但没有打到。N=没打到。`;
-
-// ============ STATE ============
-let cur = null;
-let cards = JSON.parse(localStorage.getItem('cm_cards')||'[]');
-
-// ============ KEYS ============
-function getKey(){
-  const a=localStorage.getItem('ds_a')||'',s=localStorage.getItem('ds_s')||'';
-  return a&&s?a+'.'+s:'';
-}
-function saveKeys(){
-  const a=document.getElementById('api-a').value.trim(),s=document.getElementById('api-s').value.trim();
-  if(!a||!s)return;
-  localStorage.setItem('ds_a',a);localStorage.setItem('ds_s',s);
-  document.getElementById('api-st').textContent='✓';document.getElementById('api-st').className='api-st ok';
-}
-(function(){
-  const a=localStorage.getItem('ds_a'),s=localStorage.getItem('ds_s');
-  if(a&&s){document.getElementById('api-a').value=a;document.getElementById('api-s').value=s;document.getElementById('api-st').textContent='✓';document.getElementById('api-st').className='api-st ok';}
-})();
+他说：`;
 
 // ============ API ============
 async function call(u,s){
   const k=getKey();if(!k)throw Error('先设Key');
-  let m=u;if(s)m+='\n场景：'+s;
+  let msg = INSTRUCTION + '\n' + u;
+  if(s) msg += '\n\n场景：'+s;
+  msg += '\n\n最后一行，单独一行，加稀有度标记：<R>UR</R> 或 <R>SSR</R> 或 <R>SR</R> 或 <R>R</R> 或 <R>N</R>';
   const r=await fetch('https://api.deepseek.com/chat/completions',{
     method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},
-    body:JSON.stringify({model:'deepseek-chat',messages:[{role:'system',content:P},{role:'user',content:m}],stream:false,temperature:1.3,max_tokens:800})
+    body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:msg}],stream:false,temperature:1.4,max_tokens:600})
   });
   if(!r.ok){const e=await r.text();throw Error(e.slice(0,120))}
   return (await r.json()).choices[0].message.content;
@@ -250,25 +232,16 @@ async function call(u,s){
 // ============ PARSE ============
 function parse(raw){
   const s={};
-  // REF — "他以为他在问" + "其实他在问"
-  const surfaceMatch=raw.match(/他以为他在问[：:]\s*(.+)/);
-  const deepMatch=raw.match(/其实他在问[：:]\s*(.+)/);
-  if(surfaceMatch||deepMatch) s.REF=(surfaceMatch?surfaceMatch[1]:'')+'|'+(deepMatch?deepMatch[1]:'');
-  // LINES — "一根是" "另一根是" "它们缠在"
-  const a=raw.match(/一根是[：:]\s*(.+)/),b=raw.match(/另一根是[：:]\s*(.+)/),k=raw.match(/它们缠在[：:]\s*(.+)/);
-  if(a||b||k) s.LINE=[a?a[1]:'',b?b[1]:'',k?k[1]:''].join('|');
-  // ROOT — "在这样一个时刻"
-  const rootMatch=raw.match(/在这样一个时刻[：:]\s*([\s\S]*?)(?=\n\n|\n他看着|$)/);
-  if(rootMatch) s.ROOT=rootMatch[1].trim();
-  // SHELL — "他看着壳"
-  const shellMatch=raw.match(/他看着壳[：:]\s*(.+)/);
-  if(shellMatch) s.SHELL=shellMatch[1].trim();
-  // HELLO — after "#"
-  const helloMatch=raw.match(/#\s*\n+([^\n]+)/);
-  if(helloMatch) s.HELLO=helloMatch[1].trim();
-  // RARITY
-  const rMatch=raw.match(/稀有度[：:]\s*(UR|SSR|SR|R|N)/i);
+  // Extract rarity from <R>...</R> tag at the end
+  const rMatch=raw.match(/<R>\s*(UR|SSR|SR|R|N)\s*<\/R>/i);
   s.L=rMatch?rMatch[1].toUpperCase():'N';
+  // Everything before the tag is the body
+  s.BODY = raw.replace(/<R>\s*(?:UR|SSR|SR|R|N)\s*<\/R>/i,'').trim();
+  // Try to extract last line as HELLO
+  const lines = s.BODY.split('\n').filter(l=>l.trim());
+  if(lines.length > 0) {
+    s.HELLO = lines[lines.length-1].trim();
+  }
   return s;
 }
 
@@ -287,19 +260,25 @@ function render(s,u){
   c.className='card';c.classList.remove('in','glow');
   b.textContent=l;b.className='badge '+lc;b.classList.remove('in');
   document.getElementById('card-hint').textContent='「'+(u.length>100?u.slice(0,100)+'...':u)+'」';
-  // REF — the reframing (most important section)
-  document.getElementById('card-threads').innerHTML=s.REF?s.REF.replace(/\\n/g,'<br>'):'';
-  // LINE — the threads
-  document.getElementById('card-root').innerHTML=s.LINE?s.LINE.replace(/\\n/g,'<br>'):'';
-  // ROOT is the scene — embedded into pattern box
-  const pbox=document.getElementById('card-pbox');
-  if(s.ROOT){
-    document.getElementById('card-pname').textContent='追到根';
-    document.getElementById('card-pfields').textContent=s.ROOT;
-    pbox.style.display='';
-  }else pbox.style.display='none';
-  document.getElementById('card-shell').innerHTML=s.SHELL?s.SHELL.replace(/\\n/g,'<br>'):'';
-  document.getElementById('card-presence').textContent=s.HELLO||'';
+  // BODY — render as plain text with paragraphs
+  const body = s.BODY || '';
+  const bodyLines = body.split('\n').filter(l=>l.trim());
+  // Last line as presence, rest as body
+  let bodyText, presence;
+  if(bodyLines.length <= 2){
+    bodyText = body;
+    presence = '';
+  } else {
+    presence = bodyLines.pop();
+    bodyText = bodyLines.join('\n');
+  }
+  document.getElementById('card-threads').innerHTML = bodyText.replace(/\n/g,'<br>');
+  document.getElementById('card-root').style.display='none';
+  document.getElementById('card-root').parentElement.previousElementSibling.style.display='none';
+  document.getElementById('card-pbox').style.display='none';
+  document.getElementById('card-shell').style.display='none';
+  document.getElementById('card-shell').parentElement.previousElementSibling.style.display='none';
+  document.getElementById('card-presence').textContent = presence || s.HELLO || '';
   c.classList.add('card',lc);
   document.getElementById('mat-hint').style.display=(l==='UR'||l==='SSR')?'':'none';
   setTimeout(()=>{b.classList.add('in');c.classList.add('in');if(lc==='ur'||lc==='ssr')setTimeout(()=>c.classList.add('glow'),500)},80);
