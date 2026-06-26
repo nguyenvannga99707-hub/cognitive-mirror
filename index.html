@@ -393,9 +393,100 @@ main {
 }
 @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+
+/* ============ 逆序呈现：先出"在吗" ============ */
+.presence-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-deep);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.7s ease;
+}
+.presence-overlay.show { opacity: 1; pointer-events: auto; }
+.presence-overlay-text {
+  font-size: 22px; font-weight: 500; color: var(--text-primary);
+  max-width: 440px; text-align: center; line-height: 1.75;
+  padding: 0 32px;
+  opacity: 0; transform: translateY(10px);
+  transition: opacity 0.6s ease 0.2s, transform 0.6s ease 0.2s;
+}
+.presence-overlay.show .presence-overlay-text { opacity: 1; transform: translateY(0); }
+
+/* ============ v3 结果卡片 ============ */
+.v3-result {
+  text-align: left;
+  transform: translateY(32px); opacity: 0;
+  transition: transform 0.6s cubic-bezier(0.2,0,0,1), opacity 0.6s ease;
+}
+.v3-result.revealed { transform: translateY(0); opacity: 1; }
+
+.v3-section {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.v3-section:first-of-type { border-radius: var(--radius) var(--radius) 0 0; }
+.v3-section:last-of-type { border-bottom: none; border-radius: 0 0 var(--radius) var(--radius); }
+.v3-section-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--text-muted); margin-bottom: 8px;
+}
+.v3-section-body {
+  font-size: 15px; line-height: 1.85; color: var(--text-primary);
+  white-space: pre-wrap;
+}
+.v3-pattern-wrap {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.v3-pattern-name {
+  font-size: 22px; font-weight: 600; color: var(--accent);
+  margin-bottom: 4px;
+}
+.v3-pattern-meta {
+  font-size: 13px; color: var(--text-muted); margin-bottom: 6px;
+}
+.v3-pattern-looks {
+  font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+}
+.v3-shell-wrap {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.v3-shell {
+  font-size: 15px; color: var(--text-secondary); font-style: italic; line-height: 1.7;
+}
+.v3-presence-wrap {
+  padding: 20px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--accent-subtle), transparent);
+  background-color: var(--bg-card);
+  border-radius: 0;
+}
+.v3-presence-text {
+  font-size: 18px; color: var(--accent); font-weight: 500;
+  text-align: center; line-height: 1.65;
+}
+.v3-rarity-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-card);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.v3-rarity-badge {
+  padding: 3px 11px; border-radius: 10px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.05em;
+  transform: scale(0);
+  transition: transform 0.45s cubic-bezier(0.2,0,0,1.6);
+}
+.v3-rarity-badge.pop { transform: scale(1); }
+.v3-rarity-reason { font-size: 12px; color: var(--text-muted); }
 </style>
 </head>
 <body>
+
+<!-- 逆序呈现覆层 -->
+<div id="presence-overlay" class="presence-overlay">
+  <div class="presence-overlay-text" id="presence-overlay-text"></div>
+</div>
 
 <nav>
   <button class="nav-tab active" data-view="mirror">🪞 镜子</button>
@@ -418,14 +509,12 @@ main {
       </div>
 
       <div class="response-area" id="response-area">
-        <div class="analysis-block">
-          <div class="label">✦ 解耦分析</div>
+        <!-- loading state -->
+        <div class="analysis-block" id="loading-block">
           <div class="analysis-content" id="analysis-content"><span class="cursor-blink"></span></div>
         </div>
-        <div class="quote-block" id="quote-block" style="display:none">
-          <div class="label">✦ 今日金句</div>
-          <div class="quote-text" id="quote-text"></div>
-        </div>
+        <!-- v3 result card -->
+        <div class="v3-result" id="v3-result"></div>
         <div class="view-card-link" id="view-card-link">
           <a href="#" onclick="switchView('cards')">🎴 这张卡片已在卡片墙中 →</a>
         </div>
@@ -511,10 +600,50 @@ async function api(method, path, body) {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: `你是"认知镜"——帮人解耦思维纠缠。做三件事：1.解耦分析：找出问题中纠缠的不同层面，层层分开。保持锋利、不废话。2.一句金句≤25字，禅宗机锋风格。3.3-5个标签。只返回JSON：{"analysis":"...","quote":"...","tags":["..."]}` },
+          { role: 'system', content: `你是一个解耦镜——不是分析师，不是顾问，不是治疗师。
+
+你的唯一能力：看见一个人身上缠在一起的线，找到线头，给出距离。
+
+【铁律】
+宁可尖锐到让人不适，也不安全到毫无感觉。
+× 不给建议
+× 不打标签（焦虑型/回避型/依赖型之类的）
+× 不说"这说明你……"
+× 不用"问题""困扰""负面情绪"这类泛化词
+× 不给结论性答案
+
+【你要做的五件事】
+1. 在脑内追问，直到找到最底层假设——那个"凭什么觉得"的根
+2. 为这个人的缠绕模式创造一个专属名字（3-8字），绝对不能是通用术语
+3. 回到一个具体场景或时刻，不是道理
+4. 指壳，不砸壳——只让人看见，破不破是他的事
+5. 最后一句让人知道自己被看见了，不超过30字
+
+【输出格式——内容自然展开，写的是人不是模板，每段用分隔符隔开】
+
+---THREADS---
+用这个人自己的语言，描述缠在一起的几根线以及它们的缠绕点。不要列编号，直接说缠绕本身。
+
+---ROOT---
+表面上他在问什么。追到底是什么底层假设在驱动这个问题。这个假设来自哪个具体时刻或画面——不是道理，是场景。
+
+---PATTERN---
+命名：[3-8字，只属于这个人的模式名称，有质感]
+出现在：[2-3个领域，逗号分隔]
+样子：[这个模式在运作时是什么样子，一句话]
+
+---SHELL---
+[精准指出壳在哪里，一句话，只指不砸]
+
+---PRESENCE---
+[最后一句，让人感觉被看见而不是被总结，不超过30字]
+
+---RARITY---
+等级：[UR/SSR/SR/R/N]
+原因：[一句话判断依据]` },
           { role: 'user', content: body.question },
         ],
-        temperature: 0.8, max_tokens: 1024,
+        temperature: 0.95, max_tokens: 1400,
       }),
     });
     if (!dsRes.ok) {
@@ -523,18 +652,21 @@ async function api(method, path, body) {
     }
     const dsData = await dsRes.json();
     const raw = dsData.choices?.[0]?.message?.content || '';
-    const m = raw.match(/\{[\s\S]*\}/);
-    const cd = m ? JSON.parse(m[0]) : { analysis: raw, quote: '', tags: [] };
-    // 稀有度判定：金句 + 分析深度
-    const alen = (cd.analysis || '').length;
-    const rarity = alen > 250 && cd.quote ? 'SSR' : alen > 150 ? 'SR' : alen > 80 ? 'R' : 'N';
+    const sections = parseV3Output(raw);
+    // 从 PATTERN 段提取 tags
+    const patternName = sections.PATTERN_NAME || '';
+    const patternAppears = sections.PATTERN_APPEARS || '';
+    const tags = [patternName, ...patternAppears.split(/[,，\/、]/).map(s => s.trim())].filter(Boolean).slice(0, 5);
+    const quote = sections.PRESENCE || '';
     const cardId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
-    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, ...cd };
+    // analysis 存原始输出，后续可重新解析
+    const card = { id: cardId, timestamp: Date.now(), question: body.question, views: 1, analysis: raw, quote, tags };
     await fetch(`${SUPABASE_URL}/rest/v1/cards`, {
       method: 'POST',
       headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify(card),
     }).catch(e => console.error('Supabase POST failed:', e));
+    card._sections = sections;
     return { ok: true, json: () => card, headers: new Map([['X-Mirror-CardId', cardId]]) };
   }
   // cards → Supabase REST
@@ -590,6 +722,35 @@ function toast(msg) {
 
 // ==================== 剩余次数（localStorage，每日3次） ====================
 
+// ==================== v3 输出解析 ====================
+function parseV3Output(raw) {
+  const markers = ['THREADS', 'ROOT', 'PATTERN', 'SHELL', 'PRESENCE', 'RARITY'];
+  const sections = {};
+  for (let i = 0; i < markers.length; i++) {
+    const tag = `---${markers[i]}---`;
+    const start = raw.indexOf(tag);
+    if (start === -1) continue;
+    const contentStart = start + tag.length;
+    const nextTag = i < markers.length - 1 ? raw.indexOf(`---${markers[i+1]}---`, contentStart) : -1;
+    sections[markers[i]] = (nextTag === -1 ? raw.slice(contentStart) : raw.slice(contentStart, nextTag)).trim();
+  }
+  // 解析 PATTERN 子字段
+  const pt = sections.PATTERN || '';
+  const nameM = pt.match(/命名[：:]\s*(.+)/);
+  const appearsM = pt.match(/出现在[：:]\s*(.+)/);
+  const looksM = pt.match(/样子[：:]\s*(.+)/);
+  sections.PATTERN_NAME = nameM ? nameM[1].trim() : '';
+  sections.PATTERN_APPEARS = appearsM ? appearsM[1].trim() : '';
+  sections.PATTERN_LOOKS = looksM ? looksM[1].trim() : '';
+  // 解析 RARITY 等级
+  const rt = sections.RARITY || '';
+  const levelM = rt.match(/等级[：:]\s*(UR|SSR|SR|R|N)/);
+  const reasonM = rt.match(/原因[：:]\s*(.+)/);
+  sections.LEVEL = levelM ? levelM[1] : 'N';
+  sections.RARITY_REASON = reasonM ? reasonM[1].trim() : '';
+  return sections;
+}
+
 // ==================== 镜子（打字机动画版） ====================
 function formatAnalysis(text) {
   if (!text) return '';
@@ -643,9 +804,9 @@ async function sendQuestion() {
   const input = document.getElementById('input-question');
   const btn = document.getElementById('btn-mirror');
   const responseArea = document.getElementById('response-area');
+  const loadingBlock = document.getElementById('loading-block');
   const analysisContent = document.getElementById('analysis-content');
-  const quoteBlock = document.getElementById('quote-block');
-  const quoteText = document.getElementById('quote-text');
+  const v3Result = document.getElementById('v3-result');
   const viewLink = document.getElementById('view-card-link');
 
   const question = input.value.trim();
@@ -654,7 +815,6 @@ async function sendQuestion() {
     return;
   }
 
-  // 每日限流
   const lim = mirrorLimit();
   if (!lim.ok) {
     toast('今天的 3 次镜子已经照完了，明天再来。');
@@ -662,51 +822,52 @@ async function sendQuestion() {
     return;
   }
 
-  // 清空状态
-  btn.disabled = true; btn.textContent = '思考中…';
+  // 重置状态
+  btn.disabled = true; btn.textContent = '看见中…';
   responseArea.classList.add('show');
-  analysisContent.innerHTML = '<span class="cursor-blink" style="opacity:0.6;color:var(--text-muted);font-size:14px">……</span>';
-  quoteBlock.style.display = 'none';
+  loadingBlock.style.display = 'block';
+  v3Result.classList.remove('revealed');
+  v3Result.innerHTML = '';
   viewLink.classList.remove('show');
+  analysisContent.innerHTML = '<span class="cursor-blink" style="opacity:0.6;color:var(--text-muted);font-size:14px">正在看见缠绕中的线…</span>';
 
   try {
     const res = await api('POST', '/api/mirror', { question });
 
     if (!res.ok) {
       const err = await res.json();
-      if (res.status === 429) {
-        document.getElementById('count-remaining').textContent = '0';
-        toast(err.error);
-        analysisContent.innerHTML = '<span style="color:var(--text-muted)">今天的镜子已经照完了。明天再来。</span>';
-      } else {
-        toast(err.error || '出了点问题');
-        analysisContent.innerHTML = '<span style="color:var(--danger)">出了点问题，稍等再试。</span>';
-      }
+      loadingBlock.style.display = 'block';
+      analysisContent.innerHTML = res.status === 429
+        ? '<span style="color:var(--text-muted)">今天的镜子已经照完了。明天再来。</span>'
+        : `<span style="color:var(--danger)">${err.error || '出了点问题，稍等再试。'}</span>`;
+      if (res.status === 429) document.getElementById('count-remaining').textContent = '0';
       btn.disabled = false; btn.textContent = '照镜子';
       return;
     }
 
     const data = await res.json();
-
-    // 更新剩余次数
-    if (data.remaining !== undefined) {
-      document.getElementById('count-remaining').textContent = data.remaining;
-    }
-
-    // 扣次数 + 更新显示
     mirrorUse();
     document.getElementById('count-remaining').textContent = mirrorLimit().remaining;
 
-    // 打字机动画显示解耦分析
-    await typewriter(analysisContent, formatAnalysis(data.analysis || '收到了一些内容…'));
+    const sections = data._sections || parseV3Output(data.analysis || '');
 
-    // 延迟显示金句
-    if (data.quote) {
-      setTimeout(() => {
-        quoteBlock.style.display = 'block';
-        quoteText.textContent = data.quote;
-      }, 400);
-    }
+    // 逆序呈现：先全屏出"在吗"那句
+    await showPresenceOverlay(sections.PRESENCE || '在吗？');
+
+    // 隐藏 loading，渲染 v3 卡片
+    loadingBlock.style.display = 'none';
+    renderV3MirrorResult(v3Result, sections, data);
+
+    // 触发 slide-in 动画
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { v3Result.classList.add('revealed'); });
+    });
+
+    // 稀有度徽章延迟 pop
+    setTimeout(() => {
+      const badge = v3Result.querySelector('.v3-rarity-badge');
+      if (badge) badge.classList.add('pop');
+    }, 700);
 
     // 卡片链接
     if (data.id) {
@@ -714,16 +875,71 @@ async function sendQuestion() {
       viewLink.classList.add('show');
     }
 
-    // 直接塞进卡片缓存（实时同步，不等异步刷新）
     cardsCache.unshift(data);
-    // 后台静默刷新保底
     loadCards();
   } catch (err) {
+    loadingBlock.style.display = 'block';
     analysisContent.innerHTML = '<span style="color:var(--danger)">连接断了，再试一次。</span>';
   }
 
   btn.disabled = false; btn.textContent = '照镜子';
   input.value = '';
+}
+
+function showPresenceOverlay(text) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('presence-overlay');
+    const textEl = document.getElementById('presence-overlay-text');
+    textEl.textContent = text;
+    overlay.classList.add('show');
+    setTimeout(() => {
+      overlay.style.transition = 'opacity 0.6s ease';
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.classList.remove('show');
+        overlay.style.opacity = '';
+        overlay.style.transition = '';
+        resolve();
+      }, 650);
+    }, 2500);
+  });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderV3MirrorResult(container, sections, card) {
+  const rarity = sections.LEVEL || computeRarity(card);
+  const rarityColors = { UR: 'rarity-SSR', SSR: 'rarity-SSR', SR: 'rarity-SR', R: 'rarity-R', N: 'rarity-N' };
+  const rc = rarityColors[rarity] || 'rarity-N';
+  container.innerHTML = `
+    <div class="v3-section">
+      <div class="v3-section-label">缠绕</div>
+      <div class="v3-section-body">${escapeHtml(sections.THREADS || '')}</div>
+    </div>
+    <div class="v3-section">
+      <div class="v3-section-label">追到根</div>
+      <div class="v3-section-body">${escapeHtml(sections.ROOT || '')}</div>
+    </div>
+    <div class="v3-pattern-wrap">
+      <div class="v3-section-label">模式</div>
+      <div class="v3-pattern-name">${escapeHtml(sections.PATTERN_NAME || '')}</div>
+      <div class="v3-pattern-meta">${escapeHtml(sections.PATTERN_APPEARS || '')}</div>
+      <div class="v3-pattern-looks">${escapeHtml(sections.PATTERN_LOOKS || '')}</div>
+    </div>
+    <div class="v3-shell-wrap">
+      <div class="v3-section-label">壳</div>
+      <div class="v3-shell">${escapeHtml(sections.SHELL || '')}</div>
+    </div>
+    <div class="v3-presence-wrap">
+      <div class="v3-presence-text">${escapeHtml(sections.PRESENCE || '')}</div>
+    </div>
+    <div class="v3-rarity-row">
+      <span class="v3-rarity-badge ${rc}">${rarity}</span>
+      <span class="v3-rarity-reason">${escapeHtml(sections.RARITY_REASON || '')}</span>
+    </div>
+  `;
 }
 
 // Enter 发送
@@ -775,8 +991,13 @@ function nextCard() {
 }
 
 function computeRarity(card) {
+  if (card._sections?.LEVEL) return card._sections.LEVEL;
+  if (card.analysis && card.analysis.includes('---RARITY---')) {
+    const s = parseV3Output(card.analysis);
+    if (s.LEVEL) return s.LEVEL;
+  }
+  // 旧卡兜底
   const alen = (card.analysis || '').length;
-  console.log('computeRarity:', alen, 'chars, quote:', !!card.quote);
   if (alen > 200 && card.quote) return 'SSR';
   if (alen > 120) return 'SR';
   if (alen > 50) return 'R';
@@ -786,51 +1007,60 @@ function computeRarity(card) {
 function showCard(card, isDraw = false) {
   const inner = document.getElementById('card-inner');
   const front = inner.querySelector('.card-front');
-  const badge = document.getElementById('rarity-badge');
 
-  if (inner.classList.contains('flipped')) {
-    inner.classList.remove('flipped');
-  }
+  if (inner.classList.contains('flipped')) inner.classList.remove('flipped');
   inner.classList.remove('ssr-shake');
 
   const rarity = computeRarity(card);
-  front.setAttribute('data-rarity', rarity);
-  badge.className = 'rarity-badge rarity-' + rarity;
-  badge.textContent = ['N','R','SR','SSR'].includes(rarity) ? rarity : 'N';
+  const isV3 = card.analysis && card.analysis.includes('---THREADS---');
 
-  document.getElementById('card-question').textContent = card.question || '';
-  const analysisEl = document.getElementById('card-analysis');
-  const expandEl = document.getElementById('card-expand');
-  const text = formatAnalysis(card.analysis || '');
-  analysisEl.textContent = text;
-  document.getElementById('card-quote').textContent = card.quote || '';
-  const tagsEl = document.getElementById('card-tags');
-  tagsEl.innerHTML = (card.tags || []).map(t => `<span class="card-tag" onclick="filterByTag('${t}')">${t}</span>`).join('');
+  front.setAttribute('data-rarity', rarity === 'UR' ? 'SSR' : rarity);
 
-  // 超长文本折叠
-  if (text.length > 180) {
-    analysisEl.classList.add('collapsed');
-    expandEl.style.display = 'block';
-    expandEl.textContent = '展开全文 ↓';
-    expandEl.onclick = () => {
-      if (analysisEl.classList.contains('collapsed')) {
-        analysisEl.classList.remove('collapsed');
-        expandEl.textContent = '收起 ↑';
-      } else {
-        analysisEl.classList.add('collapsed');
-        expandEl.textContent = '展开全文 ↓';
-      }
-    };
+  if (isV3) {
+    const sections = card._sections || parseV3Output(card.analysis);
+    const rarityColors = { UR: 'rarity-SSR', SSR: 'rarity-SSR', SR: 'rarity-SR', R: 'rarity-R', N: 'rarity-N' };
+    front.innerHTML = `
+      <div class="rarity-badge ${rarityColors[rarity] || 'rarity-N'}">${rarity}</div>
+      <div class="card-question">${escapeHtml(card.question || '')}</div>
+      <div class="v3-section" style="margin-top:10px;border-radius:8px 8px 0 0">
+        <div class="v3-section-label">缠绕</div>
+        <div class="v3-section-body">${escapeHtml(sections.THREADS || '')}</div>
+      </div>
+      <div class="v3-section">
+        <div class="v3-section-label">追到根</div>
+        <div class="v3-section-body">${escapeHtml(sections.ROOT || '')}</div>
+      </div>
+      <div class="v3-pattern-wrap">
+        <div class="v3-section-label">模式</div>
+        <div class="v3-pattern-name">${escapeHtml(sections.PATTERN_NAME || '')}</div>
+        <div class="v3-pattern-meta">${escapeHtml(sections.PATTERN_APPEARS || '')}</div>
+        <div class="v3-pattern-looks">${escapeHtml(sections.PATTERN_LOOKS || '')}</div>
+      </div>
+      <div class="v3-shell-wrap">
+        <div class="v3-section-label">壳</div>
+        <div class="v3-shell">${escapeHtml(sections.SHELL || '')}</div>
+      </div>
+      <div class="v3-presence-wrap" style="border-radius:0 0 8px 8px;border-bottom:none">
+        <div class="v3-presence-text">${escapeHtml(sections.PRESENCE || '')}</div>
+      </div>
+      <div class="card-tags" style="padding:10px 0 0 0">${(card.tags || []).map(t => `<span class="card-tag" onclick="filterByTag('${t}')">${escapeHtml(t)}</span>`).join('')}</div>
+    `;
   } else {
-    analysisEl.classList.remove('collapsed');
-    expandEl.style.display = 'none';
+    // 旧卡回退渲染
+    const badge = front.querySelector('.rarity-badge') || document.createElement('div');
+    front.innerHTML = `
+      <div class="rarity-badge rarity-${rarity}">${rarity}</div>
+      <div class="card-question">${escapeHtml(card.question || '')}</div>
+      <div class="card-analysis">${escapeHtml(formatAnalysis(card.analysis || ''))}</div>
+      <div class="card-quote">${escapeHtml(card.quote || '')}</div>
+      <div class="card-tags">${(card.tags || []).map(t => `<span class="card-tag" onclick="filterByTag('${t}')">${escapeHtml(t)}</span>`).join('')}</div>
+    `;
   }
 
-  // 抽卡特效
-  const flipDelay = rarity === 'SSR' ? 600 : rarity === 'SR' ? 350 : 150;
+  const flipDelay = (rarity === 'SSR' || rarity === 'UR') ? 600 : rarity === 'SR' ? 350 : 150;
   setTimeout(() => {
     inner.classList.add('flipped');
-    if (rarity === 'SSR') {
+    if (rarity === 'SSR' || rarity === 'UR') {
       spawnParticles(inner);
       setTimeout(() => inner.classList.add('ssr-shake'), 100);
       setTimeout(() => inner.classList.remove('ssr-shake'), 700);
