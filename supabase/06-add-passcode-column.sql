@@ -1,0 +1,1 @@
+ALTER TABLE handle_events ADD COLUMN IF NOT EXISTS passcode TEXT;
